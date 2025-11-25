@@ -21,7 +21,7 @@
 ## Hardware
 
 * Turtlebot3
-* Intel RealSense 3d camera
+* Luxonis OAK-D Pro 3d camera
 
 ## Installation
 
