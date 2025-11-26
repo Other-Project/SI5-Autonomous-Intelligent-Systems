@@ -26,3 +26,7 @@
 ## Installation
 
 Install ROS Jazzy to run this project
+
+```sh
+sudo apt install ros-jazzy-depthai-ros
+```

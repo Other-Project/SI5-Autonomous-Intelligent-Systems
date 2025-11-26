@@ -1,9 +1,12 @@
 all: sim
 
-build:
+build_ros:
 	colcon build
 
-sim: build
+sim: build_ros
 	. install/setup.sh
-	export TURTLEBOT3_MODEL=burger
-	ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py
+	ros2 launch turtlebot3_launch simulation.launch.py
+
+real: build_ros
+	. install/setup.sh
+	ros2 launch turtlebot3_launch real.launch.py
