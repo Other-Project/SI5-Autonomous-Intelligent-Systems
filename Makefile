@@ -10,3 +10,6 @@ sim: build_ros
 real: build_ros
 	. install/setup.sh
 	ros2 launch turtlebot3_launch real.launch.py
+
+clean:
+	rm -rf build install log
