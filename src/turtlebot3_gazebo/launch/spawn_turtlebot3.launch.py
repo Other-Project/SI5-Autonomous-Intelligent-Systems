@@ -16,9 +16,10 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, AppendEnvironmentVariable
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+import xacro
 
 
 def generate_launch_description():
@@ -28,11 +29,11 @@ def generate_launch_description():
     model_folder = 'turtlebot3_' + TURTLEBOT3_MODEL
 
     urdf_path = os.path.join(
-        get_package_share_directory('turtlebot3_gazebo'),
-        'models',
-        model_folder,
-        'model.sdf'
+        get_package_share_directory('turtlebot3_descriptions'),
+        'urdf',
+        'turtlebot3_burger_oak_d_pro.urdf'
     )
+    robot_description_config = xacro.process_file(urdf_path).toxml()
 
     # Launch configuration variables specific to simulation
     x_pose = LaunchConfiguration('x_pose', default='0.0')
@@ -52,7 +53,7 @@ def generate_launch_description():
         executable='create',
         arguments=[
             '-name', TURTLEBOT3_MODEL,
-            '-file', urdf_path,
+            '-string', robot_description_config,
             '-x', x_pose,
             '-y', y_pose,
             '-z', '0.01'
