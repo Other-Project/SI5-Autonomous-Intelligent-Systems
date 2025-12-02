@@ -212,12 +212,19 @@
     <child link="camera_rgb_frame"/>
   </joint>
   <link name="camera_rgb_frame"/>
-
+  
   <joint name="camera_rgb_optical_joint" type="fixed">
     <origin xyz="0 0 0" rpy="-1.5707 0 -1.57"/>
     <parent link="camera_rgb_frame"/>
     <child link="camera_rgb_optical_frame"/>
   </joint>
   <link name="camera_rgb_optical_frame"/>
+
+  <joint name="camera_depth_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="camera_link"/>
+    <child link="burger_cam/camera_link/depth_camera"/>
+  </joint>
+  <link name="burger_cam/camera_link/depth_camera"/>
 
 </robot>
