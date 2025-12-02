@@ -1,0 +1,5 @@
+{
+    "urdf-visualizer.packages": {
+        "turtlebot3_gazebo": "./src/turtlebot3_gazebo"
+    }
+}
