@@ -166,7 +166,7 @@
 
   <link name="oak_d_pro_camera">
     <visual name="meshes">
-      <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+      <origin xyz="0.0 0.0 0.0" rpy="-0.785 0 0"/>
       <geometry>
           <mesh filename="package://turtlebot3_descriptions/meshes/sensors/OAK-D-PRO.stl" scale="1.0 1.0 1.0"/>
       </geometry>
@@ -178,7 +178,7 @@
     <inertia ixx="0.00000975" ixy="0.0" ixz="0.0" iyy="0.00007087" iyz="0.0" izz="0.00007312"/>
     </inertial>  
     <collision>
-      <origin rpy="0.0 0.0 0.0" xyz="0 -0.005 -0.01"/>
+      <origin rpy="-0.785 0.0 0.0" xyz="0 -0.009 -0.004"/>
       <geometry>
         <box size="0.1 0.03 0.02"/>
       </geometry>
