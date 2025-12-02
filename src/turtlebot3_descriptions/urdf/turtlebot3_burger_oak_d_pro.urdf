@@ -198,7 +198,7 @@
   </joint>
   
   <link name="oak_d_pro_depth_optical_frame"/>   
-  <joint name="oak_d_pro_depth_optical_frame" type="fixed">
+  <joint name="joint_oak_d_pro_depth_optical_frame" type="fixed">
     <parent link="oak_d_pro_camera"/>
     <child link="oak_d_pro_depth_optical_frame"/>
     <origin xyz="0.0 0.0 0.0" rpy="-1.5708 0.0 -1.5708"/> 
