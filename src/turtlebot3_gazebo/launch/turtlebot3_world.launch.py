@@ -31,12 +31,6 @@ def generate_launch_description():
     launch_file_dir = os.path.join(get_package_share_directory('turtlebot3_gazebo'), 'launch')
     ros_gz_sim = get_package_share_directory('ros_gz_sim')
 
-    rviz_config_file = os.path.join(
-        get_package_share_directory('turtlebot3_gazebo'),
-        'rviz',
-        'tb3_gazebo.rviz'
-    )
-    
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     x_pose = LaunchConfiguration('x_pose', default='-2.0')
     y_pose = LaunchConfiguration('y_pose', default='-0.5')
@@ -81,17 +75,54 @@ def generate_launch_description():
         }.items()
     )
 
-    rviz_cmd = Node(
-       package='rviz2',
-       executable='rviz2',
-       name='rviz2',
-       output='screen',
-       parameters=[{'use_sim_time': use_sim_time}],
-       arguments=['-d', rviz_config_file]
+    robot_name = 'turtlebot3_burger_oak_d_pro'
+
+    urdf_path = os.path.join(
+        get_package_share_directory('turtlebot3_descriptions'),
+        'urdf',
+        f'{robot_name}.urdf'
     )
 
+    rviz_config_path = os.path.join(
+        get_package_share_directory('turtlebot3_descriptions'),
+        'rviz',
+        'model.rviz'
+    )
 
-    ld = LaunchDescription()
+    with open(urdf_path, 'r') as infp:
+        robot_description_content = infp.read()
+
+    ld = LaunchDescription([
+        Node(
+            package='joint_state_publisher_gui',
+            executable='joint_state_publisher_gui',
+            name='joint_state_publisher_gui',
+            #namespace=robot_name,
+            output='screen'
+        ),
+
+        Node(
+            package='robot_state_publisher',
+            executable='robot_state_publisher',
+            name='robot_state_publisher',
+            #namespace=robot_name,
+            output='screen',
+            parameters=[{
+                'robot_description': robot_description_content,
+                'publish_frequency': 10.0
+            }],
+        ),
+        
+        Node(
+            package='rviz2',
+            executable='rviz2',
+            name='rviz2',
+            output='screen',
+            parameters=[{'use_sim_time': True}],
+            arguments=['-d', rviz_config_path]
+        ),        
+    ])
+
 
     # Add the commands to the launch description
     ld.add_action(set_env_vars_resources)
@@ -99,6 +130,5 @@ def generate_launch_description():
     ld.add_action(gzclient_cmd)
     ld.add_action(robot_state_publisher_cmd)
     ld.add_action(spawn_turtlebot_cmd)
-    ld.add_action(rviz_cmd)
         
     return ld
