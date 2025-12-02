@@ -30,6 +30,12 @@ def generate_launch_description():
     launch_file_dir = os.path.join(get_package_share_directory('turtlebot3_gazebo'), 'launch')
     ros_gz_sim = get_package_share_directory('ros_gz_sim')
 
+    rviz_config_file = os.path.join(
+        get_package_share_directory('turtlebot3_gazebo'),
+        'rviz',
+        'tb3_gazebo.rviz'
+    )
+
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     x_pose = LaunchConfiguration('x_pose', default='0.0')
     y_pose = LaunchConfiguration('y_pose', default='0.0')
@@ -79,7 +85,8 @@ def generate_launch_description():
         executable='rviz2',
         name='rviz2',
         output='screen',
-        parameters=[{'use_sim_time': use_sim_time}]
+        parameters=[{'use_sim_time': use_sim_time}],
+        arguments=['-d', rviz_config_file]
     )
 
     ld = LaunchDescription()
