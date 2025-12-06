@@ -15,16 +15,13 @@ try:
         pass
         
 except Exception as e:
-    # Gérer l'erreur si le fichier n'est pas trouvé même après l'installation
-    print(f"Erreur lors du chargement de la configuration: {e}")
-
+    print(f"Error loading configuration file: {e}")
 
 class_names = model_data["class_names"]
 
 # Create a list of colors for each class where each color is a tuple of 3 integer values
 rng = np.random.default_rng(3)
 colors = rng.uniform(0, 255, size=(len(class_names), 3))
-
 
 def nms(boxes, scores, iou_threshold):
     # Sort by score
@@ -47,7 +44,6 @@ def nms(boxes, scores, iou_threshold):
 
     return keep_boxes
 
-
 def compute_iou(box, boxes):
     # Compute xmin, ymin, xmax, ymax for both boxes
     xmin = np.maximum(box[0], boxes[:, 0])
@@ -68,7 +64,6 @@ def compute_iou(box, boxes):
 
     return iou
 
-
 def xywh2xyxy(x):
     # Convert bounding box (x, y, w, h) to bounding box (x1, y1, x2, y2)
     y = np.copy(x)
@@ -78,10 +73,8 @@ def xywh2xyxy(x):
     y[..., 3] = x[..., 1] + x[..., 3] / 2
     return y
 
-
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
-
 
 def draw_detections(image, boxes, scores, class_ids, mask_alpha=0.3, mask_maps=None):
     img_height, img_width = image.shape[:2]
@@ -124,7 +117,6 @@ def draw_detections(image, boxes, scores, class_ids, mask_alpha=0.3, mask_maps=N
 
     return mask_img
 
-
 def draw_masks(image, boxes, class_ids, mask_alpha=0.3, mask_maps=None):
     mask_img = image.copy()
 
@@ -144,7 +136,6 @@ def draw_masks(image, boxes, class_ids, mask_alpha=0.3, mask_maps=None):
             mask_img[y1:y2, x1:x2] = crop_mask_img
 
     return cv2.addWeighted(mask_img, mask_alpha, image, 1 - mask_alpha, 0)
-
 
 def draw_comparison(img1, img2, name1, name2, fontsize=2.6, text_thickness=3):
     (tw, th), _ = cv2.getTextSize(
