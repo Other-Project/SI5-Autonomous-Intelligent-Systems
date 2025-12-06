@@ -1,6 +1,7 @@
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image, CompressedImage
+from sensor_msgs.msg import Image 
+from geometry_msgs.msg import PointStamped
 from cv_bridge import CvBridge 
 import json
 import depthai as dai
@@ -14,35 +15,30 @@ from .yolo_api import Segment
 class CameraReader(Node):
     def __init__(self):
         super().__init__('camera_reader_node')
-
-        self.get_logger().info('CameraReader node started...')
         self.package_share_directory = get_package_share_directory('camera_reader')
 
-        # --- Load Config ---
         try:
             config_path = os.path.join(self.package_share_directory, 'data', 'config.json')
             with open(config_path, "r") as config:
                 self.model_data = json.load(config)
         except Exception as e:
-            self.get_logger().error(f"Erreur config: {e}")
-            return
+            self.get_logger().error(f"Error loading config: {e}")
 
+        # Set image dimensions and input shape
         self.preview_img_width = self.model_data["input_width"]
         self.preview_img_height = self.model_data["input_height"]
         self.input_shape = [1, 3, self.preview_img_height, self.preview_img_width]
         
-        # --- Load Blob ---
         try:
             blob_filename = "yolo11n-seg640x640.blob"
             self.path_to_yolo_blob = os.path.join(self.package_share_directory, 'models', blob_filename)
         except Exception as e:
-            self.get_logger().error(f"Erreur Blob path: {e}")
+            self.get_logger().error(f"Error blob path: {e}")
             raise
 
-        # --- Init Pipeline ---
         self._init_depthai_pipeline()
         
-        # --- Init Segment ---
+        # Initialize YOLO segmentation
         self.yoloseg = Segment(
             input_shape=self.input_shape,
             input_height=self.preview_img_height,
@@ -53,86 +49,177 @@ class CameraReader(Node):
         )
         self.yoloseg.prepare_input_for_oakd((self.preview_img_height, self.preview_img_width))
 
-        # --- Init ROS ---
+        # Initialize publishers
         self.seg_publisher_ = self.create_publisher(Image, 'segmentation/image_raw', 2)
         self.image_publisher_ = self.create_publisher(Image, 'segmentation/through/image_raw', 2)
-        self.seg_compressed_publisher_ = self.create_publisher(CompressedImage, 'segmentation/image_raw/compressed', 2)
-        self.image_compressed_publisher_ = self.create_publisher(CompressedImage, 'segmentation/through/image_raw/compressed', 2)
+        self.target_publisher_ = self.create_publisher(PointStamped, 'robot/goal_point', 2)
+        
         self.bridge = CvBridge()
         
+        # Initialize threading for camera loop
         self.running = True
         self.thread = threading.Thread(target=self._run_camera_loop)
         self.thread.start()
         
-        self.get_logger().info('DepthAI thread started. Ready.')
+        self.get_logger().info('CameraReader started with Threading.')
 
     def _init_depthai_pipeline(self):
         self.device = dai.Device()
         self.pipeline = dai.Pipeline()
 
+        # Color camera node
         cam_rgb = self.pipeline.create(dai.node.ColorCamera)
         cam_rgb.setBoardSocket(dai.CameraBoardSocket.RGB)
         cam_rgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_800_P)
         cam_rgb.setPreviewSize(self.preview_img_width, self.preview_img_height)
         cam_rgb.setInterleaved(False)
-        cam_rgb.setFps(30)
         cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
+        cam_rgb.setFps(30)
 
+        # Mono cameras for depth
+        monoLeft = self.pipeline.create(dai.node.MonoCamera)
+        monoRight = self.pipeline.create(dai.node.MonoCamera)
+
+        # Stereo depth node
+        stereo = self.pipeline.create(dai.node.StereoDepth)
+
+        # Set resolutions and board sockets for mono cameras
+        monoLeft.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
+        monoLeft.setBoardSocket(dai.CameraBoardSocket.LEFT)
+        monoRight.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
+        monoRight.setBoardSocket(dai.CameraBoardSocket.RIGHT)
+
+        # Configure stereo depth
+        stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_DENSITY)
+        stereo.setDepthAlign(dai.CameraBoardSocket.RGB)
+
+        # Link mono cameras to stereo depth
+        monoLeft.out.link(stereo.left)
+        monoRight.out.link(stereo.right)
+
+        # Image manip for depth resizing
+        manip_depth = self.pipeline.create(dai.node.ImageManip)
+        manip_depth.initialConfig.setResize(self.preview_img_width, self.preview_img_height)
+        manip_depth.initialConfig.setFrameType(dai.ImgFrame.Type.RAW16)
+        stereo.depth.link(manip_depth.inputImage)
+
+        # Neural network node
         nn = self.pipeline.create(dai.node.NeuralNetwork)
         nn.setBlobPath(self.path_to_yolo_blob)
-        nn.input.setBlocking(False) 
-        
         cam_rgb.preview.link(nn.input)
 
-        xout_rgb = self.pipeline.create(dai.node.XLinkOut)
-        xout_rgb.setStreamName("rgb_stream")
-        nn.passthrough.link(xout_rgb.input) 
-
+        # NN output
         xout_nn = self.pipeline.create(dai.node.XLinkOut)
         xout_nn.setStreamName("nn_results")
         nn.out.link(xout_nn.input)
 
+        # RGB passthrough output
+        xout_rgb = self.pipeline.create(dai.node.XLinkOut)
+        xout_rgb.setStreamName("rgb_pass")
+        nn.passthrough.link(xout_rgb.input) 
+
+        # Depth output
+        xout_depth = self.pipeline.create(dai.node.XLinkOut)
+        xout_depth.setStreamName("depth")
+        manip_depth.out.link(xout_depth.input)
+
+        # Start the pipeline
         self.device.startPipeline(self.pipeline)
 
-        self.q_rgb = self.device.getOutputQueue(name="rgb_stream", maxSize=2, blocking=False)
-        self.q_yolo = self.device.getOutputQueue(name="nn_results", maxSize=2, blocking=False)
+        # Get output queues
+        self.q_rgb = self.device.getOutputQueue(name="rgb_pass", maxSize=4, blocking=True)
+        self.q_nn = self.device.getOutputQueue(name="nn_results", maxSize=4, blocking=True)
+        self.q_depth = self.device.getOutputQueue(name="depth", maxSize=4, blocking=True)
+
+        # Get camera intrinsics
+        calibData = self.device.readCalibration()
+        self.intrinsics = calibData.getCameraIntrinsics(dai.CameraBoardSocket.RGB, self.preview_img_width, self.preview_img_height)
 
     def _run_camera_loop(self):
-        """Ce code tourne en parallèle dans un thread séparé"""
         while self.running and rclpy.ok():
             try:
-                in_nn = self.q_yolo.get() 
+                # Get frames from DepthAI queues
                 in_rgb = self.q_rgb.get() 
+                in_nn = self.q_nn.get()
+                in_depth = self.q_depth.get() 
 
-                if in_rgb is not None and in_nn is not None:
-                    frame = in_rgb.getCvFrame()
-                    now = self.get_clock().now().to_msg()
+                # Process frames
+                frame = in_rgb.getCvFrame()
+                depth_frame = in_depth.getFrame()
+                now = self.get_clock().now().to_msg()
 
-                    ros_image_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
-                    ros_image_msg.header.stamp = now
-                    self.image_publisher_.publish(ros_image_msg)
+                # Get NN outputs
+                layer0 = np.array(in_nn.getLayerFp16("output0")).reshape(self.model_data["shapes"]["output0"])
+                layer1 = np.array(in_nn.getLayerFp16("output1")).reshape(self.model_data["shapes"]["output1"])
 
-                    ros_image_msg_compressed = self.bridge.cv2_to_compressed_imgmsg(frame, dst_format='jpg')
-                    ros_image_msg_compressed.header.stamp = now
-                    self.image_compressed_publisher_.publish(ros_image_msg_compressed)
+                # Perform segmentation
+                self.yoloseg.segment_objects_from_oakd(layer0, layer1)
 
-                    layer0 = np.array(in_nn.getLayerFp16("output0")).reshape(self.model_data["shapes"]["output0"])
-                    layer1 = np.array(in_nn.getLayerFp16("output1")).reshape(self.model_data["shapes"]["output1"])
+                if len(self.yoloseg.class_ids) > 0:
+                    # Find the person with the highest score
+                    target_idx = np.argmax(self.yoloseg.scores)
+                    person_mask = self.yoloseg.mask_maps[target_idx]
+                    
+                    # Calculate centroid of the mask
+                    M = cv2.moments(person_mask)
+                    if M["m00"] != 0:
+                        cX = int(M["m10"] / M["m00"])
+                        cY = int(M["m01"] / M["m00"])
+                    else:
+                        box = self.yoloseg.boxes[target_idx] 
+                        cX = int((box[0] + box[2]) / 2)
+                        cY = int((box[1] + box[3]) / 2)
 
-                    self.yoloseg.segment_objects_from_oakd(layer0, layer1)
+                        self.get_logger().warn("Empty mask, using Bounding Box center")
 
-                    display_frame = self.yoloseg.draw_masks(frame, draw_scores=True, mask_alpha=0.5)
+                    # Extract depth values within the mask
+                    depth_roi = depth_frame[person_mask > 0.5]
+                    valid_depths = depth_roi[depth_roi > 0]
 
-                    seg_msg = self.bridge.cv2_to_imgmsg(display_frame, encoding="bgr8")
-                    seg_msg.header.stamp = now
-                    self.seg_publisher_.publish(seg_msg)
+                    if valid_depths.size > 0:
+                        # Compute average depth
+                        avg_depth = np.mean(valid_depths)
+                        
+                        # Focal lengths
+                        fx = self.intrinsics[0][0]
+                        fy = self.intrinsics[1][1]
 
-                    seg_msg_compressed = self.bridge.cv2_to_compressed_imgmsg(display_frame, dst_format='jpg')
-                    seg_msg_compressed.header.stamp = now
-                    self.seg_compressed_publisher_.publish(seg_msg_compressed)
+                        # Optical centers
+                        cx_int = self.intrinsics[0][2]
+                        cy_int = self.intrinsics[1][2]
 
+                        # Convert real-world coordinates
+                        z_meters = avg_depth / 1000.0
+                        x_meters = (cX - cx_int) * z_meters / fx
+                        y_meters = (cY - cy_int) * z_meters / fy
+
+                        # Publish the target point
+                        point_msg = PointStamped()
+                        point_msg.header.stamp = now
+                        point_msg.header.frame_id = "oak_rgb_camera_optical_frame"
+                        point_msg.point.x = x_meters
+                        point_msg.point.y = y_meters
+                        point_msg.point.z = z_meters
+
+                        self.target_publisher_.publish(point_msg)
+
+                        # Visualize the centroid on the frame
+                        cv2.circle(frame, (cX, cY), 5, (0, 255, 0), -1)
+                # Publish images
+                ros_image_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+                ros_image_msg.header.stamp = now
+                self.image_publisher_.publish(ros_image_msg)
+
+                # Draw segmentation masks on frame
+                display_frame = self.yoloseg.draw_masks(frame, draw_scores=True, mask_alpha=0.5)
+                ros_seg_msg = self.bridge.cv2_to_imgmsg(display_frame, encoding="bgr8")
+                ros_seg_msg.header.stamp = now
+                self.seg_publisher_.publish(ros_seg_msg)
+
+            except RuntimeError:
+                break
             except Exception as e:
-                self.get_logger().error(f"Erreur thread caméra: {e}")
+                self.get_logger().error(f"Error in thread: {e}")
 
     def destroy_node(self):
         self.running = False

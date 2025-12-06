@@ -62,14 +62,13 @@ class Segment:
 
         person_mask = class_ids == PERSON_ID
 
-        # Appliquer le masque pour ne garder que les détections de personnes
+        # Apply the mask to keep only person detections
         box_predictions = box_predictions[person_mask]
         mask_predictions = mask_predictions[person_mask]
         scores = scores[person_mask]
         class_ids = class_ids[person_mask]
-        # -----------------------------------------------------------------
 
-        # Re-vérifier s'il reste des détections après le filtre
+        # If no boxes remain after filtering
         if len(scores) == 0:
             return [], [], [], np.array([])
 
@@ -146,7 +145,6 @@ class Segment:
 
         # Convert boxes to xyxy format
         boxes = xywh2xyxy(boxes)
-        # print(boxes)
 
         # Check the boxes are within the image
         boxes[:, 0] = np.clip(boxes[:, 0], 0, self.img_width)
