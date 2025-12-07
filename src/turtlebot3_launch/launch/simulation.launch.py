@@ -25,11 +25,9 @@ def generate_launch_description():
         "worlds",
         "turtlebot3_world.world",
     )
-    
+
     rviz_config_path = os.path.join(
-        get_package_share_directory('turtlebot3_descriptions'),
-        'rviz',
-        'model.rviz'
+        get_package_share_directory("turtlebot3_descriptions"), "rviz", "model.rviz"
     )
 
     ld = LaunchDescription()
@@ -37,15 +35,12 @@ def generate_launch_description():
     ld.add_action(
         AppendEnvironmentVariable(
             "GZ_SIM_RESOURCE_PATH",
-            os.path.join(get_package_share_directory("turtlebot3_descriptions"), "meshes"),
+            os.path.join(
+                get_package_share_directory("turtlebot3_descriptions"), "meshes"
+            ),
         )
     )
-    ld.add_action(
-        AppendEnvironmentVariable(
-            "TURTLEBOT3_MODEL",
-            "burger"
-        )
-    )
+    ld.add_action(AppendEnvironmentVariable("TURTLEBOT3_MODEL", "burger"))
 
     ld.add_action(
         IncludeLaunchDescription(
