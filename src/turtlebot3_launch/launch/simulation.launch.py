@@ -79,13 +79,39 @@ def generate_launch_description():
 
     ld.add_action(
         Node(
-            package='rviz2',
-            executable='rviz2',
-            name='rviz2',
-            output='screen',
-            parameters=[{'use_sim_time': True}],
-            arguments=['-d', rviz_config_path]
-        ),   
+            package="rviz2",
+            executable="rviz2",
+            name="rviz2",
+            output="screen",
+            parameters=[{"use_sim_time": use_sim_time}],
+            arguments=["-d", rviz_config_path],
+        ),
+    )
+
+    ld.add_action(
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(
+                    get_package_share_directory("nav2_bringup"),
+                    "launch",
+                    "navigation_launch.py",
+                )
+            ),
+            launch_arguments={"use_sim_time": use_sim_time}.items(),
+        )
+    )
+
+    ld.add_action(
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(
+                    get_package_share_directory("slam_toolbox"),
+                    "launch",
+                    "online_async_launch.py",
+                )
+            ),
+            launch_arguments={"use_sim_time": use_sim_time}.items(),
+        )
     )
 
     return ld

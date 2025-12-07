@@ -28,5 +28,5 @@
 Install ROS Jazzy to run this project
 
 ```sh
-sudo apt install ros-jazzy-depthai-ros
+sudo apt install ros-jazzy-depthai-ros ros-jazzy-turtlebot3-navigation2
 ```
