@@ -4,8 +4,8 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import AppendEnvironmentVariable
-from launch.actions import IncludeLaunchDescription
+from launch.actions import AppendEnvironmentVariable, IncludeLaunchDescription
+from launch_ros.actions import Node
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
@@ -24,6 +24,12 @@ def generate_launch_description():
         get_package_share_directory("turtlebot3_gazebo"),
         "worlds",
         "turtlebot3_world.world",
+    )
+    
+    rviz_config_path = os.path.join(
+        get_package_share_directory('turtlebot3_descriptions'),
+        'rviz',
+        'model.rviz'
     )
 
     ld = LaunchDescription()
@@ -74,6 +80,17 @@ def generate_launch_description():
             ),
             launch_arguments={"x_pose": x_pose, "y_pose": y_pose}.items(),
         )
+    )
+
+    ld.add_action(
+        Node(
+            package='rviz2',
+            executable='rviz2',
+            name='rviz2',
+            output='screen',
+            parameters=[{'use_sim_time': True}],
+            arguments=['-d', rviz_config_path]
+        ),   
     )
 
     return ld
