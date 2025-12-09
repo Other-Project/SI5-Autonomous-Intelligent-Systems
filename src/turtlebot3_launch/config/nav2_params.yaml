@@ -67,7 +67,7 @@ bt_navigator:
 
 controller_server:
   ros__parameters:
-    publish_stamped_cmd_vel: true
+    enable_stamped_cmd_vel: true
 
     controller_frequency: 20.0
     costmap_update_timeout: 0.30
@@ -299,6 +299,7 @@ smoother_server:
 
 behavior_server:
   ros__parameters:
+    enable_stamped_cmd_vel: true
     local_costmap_topic: local_costmap/costmap_raw
     global_costmap_topic: global_costmap/costmap_raw
     local_footprint_topic: local_costmap/published_footprint
@@ -360,6 +361,7 @@ route_server:
 
 velocity_smoother:
   ros__parameters:
+    enable_stamped_cmd_vel: true
     smoothing_frequency: 20.0
     scale_velocities: False
     feedback: "OPEN_LOOP"

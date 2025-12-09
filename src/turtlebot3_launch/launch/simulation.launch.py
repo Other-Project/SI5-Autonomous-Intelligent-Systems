@@ -4,8 +4,12 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import AppendEnvironmentVariable, IncludeLaunchDescription
-from launch_ros.actions import Node
+from launch.actions import (
+    AppendEnvironmentVariable,
+    GroupAction,
+    IncludeLaunchDescription,
+)
+from launch_ros.actions import Node, SetRemap
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
@@ -89,22 +93,27 @@ def generate_launch_description():
     )
 
     ld.add_action(
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(
-                    get_package_share_directory("nav2_bringup"),
-                    "launch",
-                    "navigation_launch.py",
-                )
-            ),
-            launch_arguments={
-                "use_sim_time": use_sim_time,
-                "params_file": os.path.join(
-                    get_package_share_directory("turtlebot3_launch"),
-                    "config",
-                    "nav2_params.yaml",
+        GroupAction(
+            actions=[
+                SetRemap(src="/cmd_vel_nav", dst=f"/cmd_vel"),
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(
+                        os.path.join(
+                            get_package_share_directory("nav2_bringup"),
+                            "launch",
+                            "navigation_launch.py",
+                        )
+                    ),
+                    launch_arguments={
+                        "use_sim_time": use_sim_time,
+                        "params_file": os.path.join(
+                            get_package_share_directory("turtlebot3_launch"),
+                            "config",
+                            "nav2_params.yaml",
+                        ),
+                    }.items(),
                 ),
-                }.items(),
+            ]
         )
     )
 
