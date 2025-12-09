@@ -14,6 +14,8 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
         (os.path.join('share', package_name, 'config'), glob('config/*')),
+        (os.path.join('share', package_name, 'data'), glob('camera_reader/*.json')), 
+        (os.path.join('share', package_name, 'models'), glob('camera_reader/models/*.blob')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -28,6 +30,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'reader_node = camera_reader.reader:main', 
         ],
     },
 )
