@@ -97,7 +97,14 @@ def generate_launch_description():
                     "navigation_launch.py",
                 )
             ),
-            launch_arguments={"use_sim_time": use_sim_time}.items(),
+            launch_arguments={
+                "use_sim_time": use_sim_time,
+                "params_file": os.path.join(
+                    get_package_share_directory("turtlebot3_launch"),
+                    "config",
+                    "nav2_params.yaml",
+                ),
+                }.items(),
         )
     )
 
