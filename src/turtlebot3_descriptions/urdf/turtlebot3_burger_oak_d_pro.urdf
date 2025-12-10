@@ -349,37 +349,25 @@
 
   <!-- RGB Camera Sensor -->
   <gazebo reference="oak_d_pro_color_optical_frame">
-    <sensor name="oak_d_pro_rgb_camera" type="camera">
-      <always_on>true</always_on>
+      <sensor name='oak_d_pro_rgb_camera' type='camera'>
+          <pose>0 0 0 0 0 0</pose>
+          <update_rate>30</update_rate>
+          <always_on>1</always_on>
       <visualize>true</visualize>
-      <update_rate>30</update_rate>
-      <camera name="oak_d_pro_rgb">
+          <topic>rgb_camera/image</topic>
+          <gz_frame_id>camera_link</gz_frame_id>
+          <camera>
         <horizontal_fov>1.047</horizontal_fov>
         <image>
           <width>640</width>
           <height>480</height>
-          <format>R8G8B8</format>
+              <format>RGB_INT8</format>
         </image>
         <clip>
           <near>0.1</near>
           <far>100</far>
         </clip>
-        <noise>
-          <type>gaussian</type>
-          <mean>0.0</mean>
-          <stddev>0.007</stddev>
-        </noise>
       </camera>
-      <!--<plugin name="camera_controller" filename="libgazebo_ros_camera.so">
-        <ros>
-          <namespace>/oak_d_pro</namespace>
-          <remapping>image_raw:=rgb/image_raw</remapping>
-          <remapping>camera_info:=rgb/camera_info</remapping>
-        </ros>
-        <camera_name>rgb_camera</camera_name>
-        <frame_name>oak_d_pro_color_optical_frame</frame_name>
-        <hack_baseline>0.07</hack_baseline>
-      </plugin>-->
     </sensor>
   </gazebo>
 
@@ -394,11 +382,14 @@
 
   <!-- Depth Camera Sensor -->
   <gazebo reference="oak_d_pro_depth_optical_frame">
-    <sensor name="oak_d_pro_depth_camera" type="depth">
-      <always_on>true</always_on>
+      <sensor name='oak_d_pro_depth_camera' type='depth_camera'>     
+          <pose>0 0 0 0 0 0</pose>
+          <update_rate>30</update_rate>
+          <always_on>1</always_on>
       <visualize>true</visualize>
-      <update_rate>30</update_rate>
-      <camera name="oak_d_pro_depth">
+          <topic>depth_camera/image</topic>    
+          <gz_frame_id>camera_link</gz_frame_id>                       
+          <camera>
         <horizontal_fov>1.047</horizontal_fov>
         <image>
           <width>640</width>
@@ -409,25 +400,7 @@
           <near>0.1</near>
           <far>100.0</far>
         </clip>
-        <noise>
-          <type>gaussian</type>
-          <mean>0.0</mean>
-          <stddev>0.01</stddev>
-        </noise>
       </camera>
-      <!--<plugin name="depth_camera_controller" filename="libgazebo_ros_camera.so">
-        <ros>
-          <namespace>/oak_d_pro</namespace>
-          <remapping>depth/image_raw:=depth/image_raw</remapping>
-          <remapping>depth/camera_info:=depth/camera_info</remapping>
-          <remapping>points:=depth/points</remapping>
-        </ros>
-        <camera_name>depth_camera</camera_name>
-        <frame_name>oak_d_pro_depth_optical_frame</frame_name>
-        <hack_baseline>0.07</hack_baseline>
-        <min_depth>0.1</min_depth>
-        <max_depth>100.0</max_depth>
-      </plugin>-->
     </sensor>
   </gazebo>
 
