@@ -12,6 +12,12 @@ import threading
 from ament_index_python.packages import get_package_share_directory
 from .yolo_api import Segment 
 
+# Constants
+CAMERA_ANGLE = 45.0 # degrees
+CAMERA_X = 0.0
+CAMERA_Y = 0.14
+CAMERA_Z = -0.10
+
 class CameraReader(Node):
     def __init__(self):
         super().__init__('camera_reader_node')
@@ -193,13 +199,35 @@ class CameraReader(Node):
                         x_meters = (cX - cx_int) * z_meters / fx
                         y_meters = (cY - cy_int) * z_meters / fy
 
+                        # Rotate point from camera frame to robot frame
+                        theta = np.radians(180.0 - CAMERA_ANGLE)
+                        point_cam = np.array([x_meters, y_meters, z_meters])
+
+                        c, s = np.cos(theta), np.sin(theta)
+                        R_x = np.array([
+                            [1, 0, 0],
+                            [0, c, -s],
+                            [0, s, c]
+                        ])
+
+                        point_robot_np = np.dot(R_x, point_cam)
+
+                        x_rob = point_robot_np[0]
+                        y_rob = point_robot_np[1]
+                        z_rob = point_robot_np[2]
+
+                        # Translate point based on camera position on robot
+                        x_rob += CAMERA_X
+                        y_rob += CAMERA_Y
+                        z_rob += CAMERA_Z
+
                         # Publish the target point
                         point_msg = PointStamped()
                         point_msg.header.stamp = now
-                        point_msg.header.frame_id = "oak_rgb_camera_optical_frame"
-                        point_msg.point.x = x_meters
-                        point_msg.point.y = y_meters
-                        point_msg.point.z = z_meters
+                        point_msg.header.frame_id = "base_link"
+                        point_msg.point.x = x_rob
+                        point_msg.point.y = y_rob
+                        point_msg.point.z = z_rob
 
                         self.target_publisher_.publish(point_msg)
 
