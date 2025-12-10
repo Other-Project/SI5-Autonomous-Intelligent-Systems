@@ -184,7 +184,7 @@ class CameraReader(Node):
 
                     if valid_depths.size > 0:
                         # Compute average depth
-                        avg_depth = np.mean(valid_depths)
+                        avg_depth = np.median(valid_depths)
                         
                         # Focal lengths
                         fx = self.intrinsics[0][0]
