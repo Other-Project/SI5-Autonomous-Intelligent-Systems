@@ -308,7 +308,7 @@
   <!-- OAK-D Pro Camera -->
   <link name="oak_d_pro_camera">
     <visual name="meshes">
-      <origin xyz="0.0 0.0 -0.0" rpy="-0.0 0 0" />
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
       <geometry>
         <mesh filename="package://turtlebot3_descriptions/meshes/sensors/OAK-D-PRO.stl"
           scale="1.0 1.0 1.0" />
@@ -321,7 +321,7 @@
       <inertia ixx="0.00000975" ixy="0.0" ixz="0.0" iyy="0.00007087" iyz="0.0" izz="0.00007312" />
     </inertial>
     <collision>
-      <origin rpy="0.0 0 0.0" xyz="0.0 -0.005 -0.01" />
+      <origin rpy="0.0 0.0 0.0" xyz="0.0 -0.005 -0.01" />
       <geometry>
         <box size="0.1 0.03 0.025" />
       </geometry>
@@ -331,7 +331,7 @@
   <joint name="joint_oak_d_pro_camera" type="fixed">
     <parent link="base_link" />
     <child link="oak_d_pro_camera" />
-    <origin xyz="-0.13 0.0 0.14" rpy="0.785 0 -1.57" />
+    <origin xyz="-0.13 0.0 0.14" rpy="0.785 0.0 -1.57" />
   </joint>
 
   <gazebo reference="oak_d_pro_camera">
@@ -377,7 +377,7 @@
   <joint name="joint_oak_d_pro_depth_optical_frame" type="fixed">
     <parent link="oak_d_pro_camera" />
     <child link="oak_d_pro_depth_optical_frame" />
-    <origin xyz="0.0 0.0 0.0" rpy="0 0.0 0.0" />
+    <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
   </joint>
 
   <!-- Depth Camera Sensor -->
