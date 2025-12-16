@@ -10,9 +10,9 @@ PERSON_ID = 0
 class Segment:
     def __init__(
         self,
-        input_shape=[1, 3, 640, 640],
-        input_height=640,
-        input_width=640,
+        input_shape,
+        input_height,
+        input_width,
         conf_thres=0.7,
         iou_thres=0.5,
         num_masks=32,

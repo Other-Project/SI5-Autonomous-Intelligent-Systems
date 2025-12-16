@@ -19,28 +19,31 @@ CAMERA_Y = 0.14
 CAMERA_Z = -0.10
 
 class CameraReader(Node):
+    """ROS2 node for OAK-D camera reading and YOLO segmentation.
+    
+    This node handles RGB and depth image capture from a DepthAI camera, performs object segmentation with YOLO and publishes the results.
+    """
+    
     def __init__(self):
+        """Initialize the CameraReader node.
+        
+        Configures the DepthAI camera, loads the YOLO model, initializes ROS2 publishers and starts the image capture thread.
+        """
         super().__init__('camera_reader_node')
         self.package_share_directory = get_package_share_directory('camera_reader')
 
-        try:
-            config_path = os.path.join(self.package_share_directory, 'data', 'config.json')
-            with open(config_path, "r") as config:
-                self.model_data = json.load(config)
-        except Exception as e:
-            self.get_logger().error(f"Error loading config: {e}")
+        config_path = os.path.join(self.package_share_directory, 'data', 'config.json')
+        with open(config_path, "r") as config:
+            self.model_data = json.load(config)
+
 
         # Set image dimensions and input shape
         self.preview_img_width = self.model_data["input_width"]
         self.preview_img_height = self.model_data["input_height"]
         self.input_shape = [1, 3, self.preview_img_height, self.preview_img_width]
         
-        try:
-            blob_filename = "yolo11n-seg640x640.blob"
-            self.path_to_yolo_blob = os.path.join(self.package_share_directory, 'models', blob_filename)
-        except Exception as e:
-            self.get_logger().error(f"Error blob path: {e}")
-            raise
+        blob_filename = "yolo11n-seg640x640.blob"
+        self.path_to_yolo_blob = os.path.join(self.package_share_directory, 'models', blob_filename)
 
         self._init_depthai_pipeline()
         
@@ -70,6 +73,11 @@ class CameraReader(Node):
         self.get_logger().info('CameraReader started with Threading.')
 
     def _init_depthai_pipeline(self):
+        """Initialize the DepthAI pipeline for the OAK-D camera.
+        
+        Configures RGB and stereo cameras, the neural network for YOLO and establishes connections between different pipeline nodes.
+        Push the pipeline on the camera.
+        """
         self.device = dai.Device()
         self.pipeline = dai.Pipeline()
 
@@ -142,6 +150,10 @@ class CameraReader(Node):
         self.intrinsics = calibData.getCameraIntrinsics(dai.CameraBoardSocket.RGB, self.preview_img_width, self.preview_img_height)
 
     def _run_camera_loop(self):
+        """Main loop for image capture and processing.
+        
+        Retrieves RGB and depth frames from the camera, runs YOLO segmentation, computes 3D coordinates of detected objects and publishes results to ROS2 topics.
+        """
         while self.running and rclpy.ok():
             try:
                 # Get frames from DepthAI queues
@@ -250,12 +262,21 @@ class CameraReader(Node):
                 self.get_logger().error(f"Error in thread: {e}")
 
     def destroy_node(self):
+        """Gracefully stop the node and release resources.
+        
+        Stops the image capture thread and waits for its termination before destroying the ROS2 node.
+        """
         self.running = False
         if hasattr(self, 'thread'):
             self.thread.join()
         super().destroy_node()
 
 def main(args=None):
+    """Main entry point for the CameraReader node.
+    
+    Args:
+        args: Command line arguments passed to rclpy.init().
+    """
     rclpy.init(args=args)
     node = CameraReader()
     try:

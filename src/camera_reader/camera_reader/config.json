@@ -1,9 +1,9 @@
 {
     "input_width": 640,
-    "input_height": 640,
+    "input_height": 384,
     "shapes": {
-        "output0": [1, 116, 8400],
-        "output1": [1, 32, 160, 160]
+        "output0": [1, 116, 5040],
+        "output1": [1, 32, 96, 160]
     },
     "class_names": [
         "person",
