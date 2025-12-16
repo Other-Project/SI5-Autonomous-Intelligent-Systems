@@ -13,7 +13,24 @@ def generate_launch_description():
     ld.add_action(
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(get_package_share_directory("camera_reader"), "launch", "camera.launch.py")
+                os.path.join(
+                    get_package_share_directory("turtlebot3_launch"),
+                    "launch",
+                    "common.launch.py",
+                )
+            ),
+            launch_arguments={}.items(),
+        )
+    )
+
+    ld.add_action(
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(
+                    get_package_share_directory("camera_reader"),
+                    "launch",
+                    "camera.launch.py",
+                )
             ),
             launch_arguments={"name": "camera"}.items(),
         )
