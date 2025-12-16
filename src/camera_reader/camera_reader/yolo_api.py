@@ -13,6 +13,7 @@ class Segment:
         input_shape,
         input_height,
         input_width,
+        class_names,
         conf_thres=0.7,
         iou_thres=0.5,
         num_masks=32,
@@ -26,6 +27,7 @@ class Segment:
         self.input_height = input_height
         self.input_width = input_width
         self.output_names = ["output0", "output1"]
+        self.class_names = class_names
 
     def segment_objects_from_oakd(self, output0, output1):
 
@@ -156,7 +158,7 @@ class Segment:
 
     def draw_detections(self, image, draw_scores=True, mask_alpha=0.4):
         return draw_detections(
-            image, self.boxes, self.scores, self.class_ids, mask_alpha
+            image, self.boxes, self.scores, self.class_names, self.class_ids, mask_alpha
         )
 
     def draw_masks(self, image, draw_scores=True, mask_alpha=0.5):
@@ -164,6 +166,7 @@ class Segment:
             image,
             self.boxes,
             self.scores,
+            self.class_names,
             self.class_ids,
             mask_alpha,
             mask_maps=self.mask_maps,

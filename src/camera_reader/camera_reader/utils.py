@@ -2,26 +2,8 @@ import json
 
 import cv2
 import numpy as np
-import os
-from ament_index_python.packages import get_package_share_directory
 
-try:
-    package_share_directory = get_package_share_directory('camera_reader')
-    config_path = os.path.join(package_share_directory, 'data', 'config.json')
-    
-    with open(config_path, "r") as config:
-        model_data = json.load(config)
-
-        pass
-        
-except Exception as e:
-    print(f"Error loading configuration file: {e}")
-
-class_names = model_data["class_names"]
-
-# Create a list of colors for each class where each color is a tuple of 3 integer values
-rng = np.random.default_rng(3)
-colors = rng.uniform(0, 255, size=(len(class_names), 3))
+COLOR = (255,0,0)
 
 def nms(boxes, scores, iou_threshold):
     # Sort by score
@@ -76,7 +58,7 @@ def xywh2xyxy(x):
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
-def draw_detections(image, boxes, scores, class_ids, mask_alpha=0.3, mask_maps=None):
+def draw_detections(image, boxes, scores, class_names, class_ids, mask_alpha=0.3, mask_maps=None):
     img_height, img_width = image.shape[:2]
     size = min([img_height, img_width]) * 0.005
     text_thickness = int(min([img_height, img_width]) * 0.001)
@@ -85,7 +67,7 @@ def draw_detections(image, boxes, scores, class_ids, mask_alpha=0.3, mask_maps=N
 
     # Draw bounding boxes and labels of detections
     for box, score, class_id in zip(boxes, scores, class_ids):
-        color = colors[class_id]
+        color = COLOR
 
         x1, y1, x2, y2 = box.astype(int)
 
@@ -122,7 +104,7 @@ def draw_masks(image, boxes, class_ids, mask_alpha=0.3, mask_maps=None):
 
     # Draw bounding boxes and labels of detections
     for i, (box, class_id) in enumerate(zip(boxes, class_ids)):
-        color = colors[class_id]
+        color = COLOR
 
         x1, y1, x2, y2 = box.astype(int)
 

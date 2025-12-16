@@ -42,7 +42,7 @@ class CameraReader(Node):
         self.preview_img_height = self.model_data["input_height"]
         self.input_shape = [1, 3, self.preview_img_height, self.preview_img_width]
         
-        blob_filename = "yolo11n-seg640x640.blob"
+        blob_filename = "yolo11n-seg_384x640_shape_6.blob"
         self.path_to_yolo_blob = os.path.join(self.package_share_directory, 'models', blob_filename)
 
         self._init_depthai_pipeline()
@@ -52,6 +52,7 @@ class CameraReader(Node):
             input_shape=self.input_shape,
             input_height=self.preview_img_height,
             input_width=self.preview_img_width,
+            class_names=self.model_data["class_names"],
             conf_thres=0.1,
             iou_thres=0.5,
             num_masks=32
@@ -245,6 +246,18 @@ class CameraReader(Node):
 
                         # Visualize the centroid on the frame
                         cv2.circle(frame, (cX, cY), 5, (0, 255, 0), -1)
+                
+                else:
+                    # Publish the target point
+                    point_msg = PointStamped()
+                    point_msg.header.stamp = now
+                    point_msg.header.frame_id = "base_link"
+                    point_msg.point.x = 0.
+                    point_msg.point.y = 0.
+                    point_msg.point.z = 0.
+
+                    self.target_publisher_.publish(point_msg)
+            
                 # Publish images
                 ros_image_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
                 ros_image_msg.header.stamp = now
