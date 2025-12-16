@@ -95,4 +95,13 @@ def generate_launch_description():
         )
     )
 
+    ld.add_action(
+        Node(
+            package="turtlebot3_pilot",
+            executable="pilot",
+            name="turtlebot3_pilot",
+            output="screen",
+        )
+    )
+
     return ld
