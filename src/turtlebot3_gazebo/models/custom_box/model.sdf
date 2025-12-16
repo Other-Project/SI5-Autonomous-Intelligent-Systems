@@ -1,0 +1,44 @@
+<?xml version="1.0" ?>
+<sdf version="1.6"> <model name='myBox'>
+    <pose>1 1 0 0 0 0</pose>
+    <static>1</static>
+    <link name='link'>
+      <collision name='collision'>
+        <geometry>
+          <box>
+            <size>0.5 1.0 2.0</size>
+          </box>
+        </geometry>
+      </collision>
+      <visual name='visual'>
+        <geometry>
+          <box>
+            <size>0.5 1.0 2.0</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.1 0.1 0.8 1</ambient>
+          <diffuse>0.1 0.1 0.8 1</diffuse>
+        </material>
+      </visual>
+      <visual name='imageFace'>
+        <pose>-0.251 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.001 1.0 2.0</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+          <pbr>
+            <metal>
+              <albedo_map>image.png</albedo_map>
+            </metal>
+          </pbr>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>
