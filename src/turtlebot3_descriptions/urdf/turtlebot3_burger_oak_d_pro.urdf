@@ -331,7 +331,7 @@
   <joint name="joint_oak_d_pro_camera" type="fixed">
     <parent link="base_link" />
     <child link="oak_d_pro_camera" />
-    <origin xyz="-0.13 0.0 0.14" rpy="0.785 0.0 -1.57" />
+    <origin xyz="0.07 0.0 0.14" rpy="0.9 0.0 1.57" />
   </joint>
 
   <gazebo reference="oak_d_pro_camera">
