@@ -1,30 +1,291 @@
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import LaserScan
-import math
+from sensor_msgs.msg import Image 
+from geometry_msgs.msg import PointStamped
+from cv_bridge import CvBridge 
+import json
+import depthai as dai
+import numpy as np
+import os
+import cv2
+import threading 
+from ament_index_python.packages import get_package_share_directory
+from .yolo_api import Segment 
+
+# Constants
+CAMERA_ANGLE = 45.0 # degrees
+CAMERA_X = 0.0
+CAMERA_Y = 0.14
+CAMERA_Z = -0.10
 
 class CameraReader(Node):
+    """ROS2 node for OAK-D camera reading and YOLO segmentation.
+    
+    This node handles RGB and depth image capture from a DepthAI camera, performs object segmentation with YOLO and publishes the results.
+    """
+    
     def __init__(self):
-        super().__init__('camera_reader')
+        """Initialize the CameraReader node.
+        
+        Configures the DepthAI camera, loads the YOLO model, initializes ROS2 publishers and starts the image capture thread.
+        """
+        super().__init__('camera_reader_node')
+        self.package_share_directory = get_package_share_directory('camera_reader')
 
-        self.subscriber = self.create_subscription(LaserScan, '/camera/nn/image_raw', self.callback, 10)
-        #self.publisher = self.create_publisher(LaserScan, '/closest_point', 10)
+        config_path = os.path.join(self.package_share_directory, 'data', 'config.json')
+        with open(config_path, "r") as config:
+            self.model_data = json.load(config)
 
-        self.get_logger().info('CameraReader node started.')
 
-    def callback(self, msg):
-        pass
+        # Set image dimensions and input shape
+        self.preview_img_width = self.model_data["input_width"]
+        self.preview_img_height = self.model_data["input_height"]
+        self.input_shape = [1, 3, self.preview_img_height, self.preview_img_width]
+        
+        blob_filename = "yolo11n-seg640x640.blob"
+        self.path_to_yolo_blob = os.path.join(self.package_share_directory, 'models', blob_filename)
+
+        self._init_depthai_pipeline()
+        
+        # Initialize YOLO segmentation
+        self.yoloseg = Segment(
+            input_shape=self.input_shape,
+            input_height=self.preview_img_height,
+            input_width=self.preview_img_width,
+            conf_thres=0.1,
+            iou_thres=0.5,
+            num_masks=32
+        )
+        self.yoloseg.prepare_input_for_oakd((self.preview_img_height, self.preview_img_width))
+
+        # Initialize publishers
+        self.seg_publisher_ = self.create_publisher(Image, 'segmentation/image_raw', 2)
+        self.image_publisher_ = self.create_publisher(Image, 'segmentation/through/image_raw', 2)
+        self.target_publisher_ = self.create_publisher(PointStamped, 'robot/goal_point', 2)
+        
+        self.bridge = CvBridge()
+        
+        # Initialize threading for camera loop
+        self.running = True
+        self.thread = threading.Thread(target=self._run_camera_loop)
+        self.thread.start()
+        
+        self.get_logger().info('CameraReader started with Threading.')
+
+    def _init_depthai_pipeline(self):
+        """Initialize the DepthAI pipeline for the OAK-D camera.
+        
+        Configures RGB and stereo cameras, the neural network for YOLO and establishes connections between different pipeline nodes.
+        Push the pipeline on the camera.
+        """
+        self.device = dai.Device()
+        self.pipeline = dai.Pipeline()
+
+        # Color camera node
+        cam_rgb = self.pipeline.create(dai.node.ColorCamera)
+        cam_rgb.setBoardSocket(dai.CameraBoardSocket.RGB)
+        cam_rgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
+        cam_rgb.setPreviewSize(self.preview_img_width, self.preview_img_height)
+        cam_rgb.setInterleaved(False)
+        cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
+        cam_rgb.setFps(30)
+
+        # Mono cameras for depth
+        monoLeft = self.pipeline.create(dai.node.MonoCamera)
+        monoRight = self.pipeline.create(dai.node.MonoCamera)
+
+        # Stereo depth node
+        stereo = self.pipeline.create(dai.node.StereoDepth)
+
+        # Set resolutions and board sockets for mono cameras
+        monoLeft.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
+        monoLeft.setBoardSocket(dai.CameraBoardSocket.LEFT)
+        monoRight.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
+        monoRight.setBoardSocket(dai.CameraBoardSocket.RIGHT)
+
+        # Configure stereo depth
+        stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_DENSITY)
+        stereo.setDepthAlign(dai.CameraBoardSocket.RGB)
+
+        # Link mono cameras to stereo depth
+        monoLeft.out.link(stereo.left)
+        monoRight.out.link(stereo.right)
+
+        # Image manip for depth resizing
+        manip_depth = self.pipeline.create(dai.node.ImageManip)
+        manip_depth.initialConfig.setResize(self.preview_img_width, self.preview_img_height)
+        manip_depth.initialConfig.setFrameType(dai.ImgFrame.Type.RAW16)
+        stereo.depth.link(manip_depth.inputImage)
+
+        # Neural network node
+        nn = self.pipeline.create(dai.node.NeuralNetwork)
+        nn.setBlobPath(self.path_to_yolo_blob)
+        cam_rgb.preview.link(nn.input)
+
+        # NN output
+        xout_nn = self.pipeline.create(dai.node.XLinkOut)
+        xout_nn.setStreamName("nn_results")
+        nn.out.link(xout_nn.input)
+
+        # RGB passthrough output
+        xout_rgb = self.pipeline.create(dai.node.XLinkOut)
+        xout_rgb.setStreamName("rgb_pass")
+        nn.passthrough.link(xout_rgb.input) 
+
+        # Depth output
+        xout_depth = self.pipeline.create(dai.node.XLinkOut)
+        xout_depth.setStreamName("depth")
+        manip_depth.out.link(xout_depth.input)
+
+        # Start the pipeline
+        self.device.startPipeline(self.pipeline)
+
+        # Get output queues
+        self.q_rgb = self.device.getOutputQueue(name="rgb_pass", maxSize=4, blocking=True)
+        self.q_nn = self.device.getOutputQueue(name="nn_results", maxSize=4, blocking=True)
+        self.q_depth = self.device.getOutputQueue(name="depth", maxSize=4, blocking=True)
+
+        # Get camera intrinsics
+        calibData = self.device.readCalibration()
+        self.intrinsics = calibData.getCameraIntrinsics(dai.CameraBoardSocket.RGB, self.preview_img_width, self.preview_img_height)
+
+    def _run_camera_loop(self):
+        """Main loop for image capture and processing.
+        
+        Retrieves RGB and depth frames from the camera, runs YOLO segmentation, computes 3D coordinates of detected objects and publishes results to ROS2 topics.
+        """
+        while self.running and rclpy.ok():
+            try:
+                # Get frames from DepthAI queues
+                in_rgb = self.q_rgb.get() 
+                in_nn = self.q_nn.get()
+                in_depth = self.q_depth.get() 
+
+                # Process frames
+                frame = in_rgb.getCvFrame()
+                depth_frame = in_depth.getFrame()
+                now = self.get_clock().now().to_msg()
+
+                # Get NN outputs
+                layer0 = np.array(in_nn.getLayerFp16("output0")).reshape(self.model_data["shapes"]["output0"])
+                layer1 = np.array(in_nn.getLayerFp16("output1")).reshape(self.model_data["shapes"]["output1"])
+
+                # Perform segmentation
+                self.yoloseg.segment_objects_from_oakd(layer0, layer1)
+
+                if len(self.yoloseg.class_ids) > 0:
+                    # Find the person with the highest score
+                    target_idx = np.argmax(self.yoloseg.scores)
+                    person_mask = self.yoloseg.mask_maps[target_idx]
+                    
+                    # Calculate centroid of the mask
+                    M = cv2.moments(person_mask)
+                    if M["m00"] != 0:
+                        cX = int(M["m10"] / M["m00"])
+                        cY = int(M["m01"] / M["m00"])
+                    else:
+                        box = self.yoloseg.boxes[target_idx] 
+                        cX = int((box[0] + box[2]) / 2)
+                        cY = int((box[1] + box[3]) / 2)
+
+                        self.get_logger().warn("Empty mask, using Bounding Box center")
+
+                    # Extract depth values within the mask
+                    depth_roi = depth_frame[person_mask > 0.5]
+                    valid_depths = depth_roi[depth_roi > 0]
+
+                    if valid_depths.size > 0:
+                        # Compute average depth
+                        avg_depth = np.median(valid_depths)
+                        
+                        # Focal lengths
+                        fx = self.intrinsics[0][0]
+                        fy = self.intrinsics[1][1]
+
+                        # Optical centers
+                        cx_int = self.intrinsics[0][2]
+                        cy_int = self.intrinsics[1][2]
+
+                        # Convert real-world coordinates
+                        z_meters = avg_depth / 1000.0
+                        x_meters = (cX - cx_int) * z_meters / fx
+                        y_meters = (cY - cy_int) * z_meters / fy
+
+                        # Rotate point from camera frame to robot frame
+                        theta = np.radians(180.0 - CAMERA_ANGLE)
+                        point_cam = np.array([x_meters, y_meters, z_meters])
+
+                        c, s = np.cos(theta), np.sin(theta)
+                        R_x = np.array([
+                            [1, 0, 0],
+                            [0, c, -s],
+                            [0, s, c]
+                        ])
+
+                        point_robot_np = np.dot(R_x, point_cam)
+
+                        x_rob = point_robot_np[0]
+                        y_rob = point_robot_np[1]
+                        z_rob = point_robot_np[2]
+
+                        # Translate point based on camera position on robot
+                        x_rob += CAMERA_X
+                        y_rob += CAMERA_Y
+                        z_rob += CAMERA_Z
+
+                        # Publish the target point
+                        point_msg = PointStamped()
+                        point_msg.header.stamp = now
+                        point_msg.header.frame_id = "base_link"
+                        point_msg.point.x = x_rob
+                        point_msg.point.y = y_rob
+                        point_msg.point.z = z_rob
+
+                        self.target_publisher_.publish(point_msg)
+
+                        # Visualize the centroid on the frame
+                        cv2.circle(frame, (cX, cY), 5, (0, 255, 0), -1)
+                # Publish images
+                ros_image_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+                ros_image_msg.header.stamp = now
+                self.image_publisher_.publish(ros_image_msg)
+
+                # Draw segmentation masks on frame
+                display_frame = self.yoloseg.draw_masks(frame, draw_scores=True, mask_alpha=0.5)
+                ros_seg_msg = self.bridge.cv2_to_imgmsg(display_frame, encoding="bgr8")
+                ros_seg_msg.header.stamp = now
+                self.seg_publisher_.publish(ros_seg_msg)
+
+            except RuntimeError:
+                break
+            except Exception as e:
+                self.get_logger().error(f"Error in thread: {e}")
+
+    def destroy_node(self):
+        """Gracefully stop the node and release resources.
+        
+        Stops the image capture thread and waits for its termination before destroying the ROS2 node.
+        """
+        self.running = False
+        if hasattr(self, 'thread'):
+            self.thread.join()
+        super().destroy_node()
 
 def main(args=None):
+    """Main entry point for the CameraReader node.
+    
+    Args:
+        args: Command line arguments passed to rclpy.init().
+    """
     rclpy.init(args=args)
     node = CameraReader()
     try:
         rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
     finally:    
         node.destroy_node()
         rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
-
-
