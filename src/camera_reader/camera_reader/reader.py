@@ -221,7 +221,7 @@ class CameraReader(Node):
         # Convert to real-world coordinates
         z_meters = avg_depth / 1000.0
         x_meters = (cX - cx_int) * z_meters / fx
-        y_meters = (cY - cy_int) * z_meters / fy
+        y_meters = -(cY - cy_int) * z_meters / fy
 
         return np.array([[x_meters, y_meters, z_meters]])
     
