@@ -152,4 +152,13 @@ def generate_launch_description():
         )
     )
 
+    ld.add_action(
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(get_package_share_directory("camera_reader_simulation"), "launch", "camera.launch.py")
+            ),
+            launch_arguments={"name": "camera"}.items(),
+        )
+    )
+
     return ld
