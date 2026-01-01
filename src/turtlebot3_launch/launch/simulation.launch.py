@@ -37,13 +37,6 @@ def generate_launch_description():
         "model.sdf",
     )
 
-    box_sdf_path = os.path.join(
-        get_package_share_directory("turtlebot3_gazebo"),
-        "models",
-        "custom_box",
-        "model.sdf",
-    )
-
     rviz_config_path = os.path.join(
         get_package_share_directory("turtlebot3_descriptions"), "rviz", "model.rviz"
     )

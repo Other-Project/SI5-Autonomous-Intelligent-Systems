@@ -17,7 +17,12 @@ setup(
         (os.path.join('share', package_name, 'data'), glob('camera_reader/*.json')), 
         (os.path.join('share', package_name, 'models'), glob('camera_reader/models/*.blob')),
     ],
-    install_requires=['setuptools'],
+    install_requires=[
+        'setuptools',
+        'numpy',
+        'opencv-python',
+        'depthai'
+    ],
     zip_safe=True,
     maintainer='evan',
     maintainer_email='evan.galli@etu.univ-cotedazur.fr',
