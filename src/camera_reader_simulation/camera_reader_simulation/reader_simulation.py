@@ -99,10 +99,10 @@ class CameraReaderSimulation(Node):
                     if self.latest_depth_img is not None:
                         z_meters = self.get_z_meters(width, height, bin_mask)
 
-                        x_meters = -(cX - self.cx) * z_meters / self.fx
-                        y_meters = (cY - self.cy) * z_meters / self.fy
+                        x_meters = -(cX - width//2) * z_meters / self.fx
+                        y_meters = (cY - height//2) * z_meters / self.fy
                         
-                        target_point = (x_meters, y_meters, z_meters)        
+                        target_point = (x_meters, y_meters, z_meters)     
 
             self.send_segmentation(display_frame, msg)
             self.send_point_msg(target_point)
@@ -116,9 +116,13 @@ class CameraReaderSimulation(Node):
         seg_msg.header.frame_id = msg.header.frame_id
         self.seg_publisher_.publish(seg_msg)
 
+
     def send_point_msg(self, target_point):
+        pos_point_map_msg = None
         point_msg = PointStamped()
         point_msg.header.stamp = rclpy.time.Time().to_msg() # Avoid time problems 
+        point_msg2 = PointStamped()
+        point_msg2.header.stamp = rclpy.time.Time().to_msg() # Avoid time problems 
 
         if self.is_ready and  target_point is not None:
             point_msg.header.frame_id = 'oak_d_pro_depth_optical_frame'
@@ -126,20 +130,20 @@ class CameraReaderSimulation(Node):
             point_msg.point.y = target_point[1]
             point_msg.point.z = target_point[2]
             try:
-                point_msg = self.tf_buffer.transform(point_msg, 'base_link')
+                point_msg2 = self.tf_buffer.transform(point_msg, 'base_link')
+                flag_point_null = False
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
                 self.get_logger().warn(f"Attente transformation: {str(e)}")
         else:
-            point_msg.header.frame_id = 'base_link'
-            point_msg.point.x = 0.0
-            point_msg.point.y = 0.0
-            point_msg.point.z = 0.0
-        
-        point_msg.point.z = 0.0 # Set the point on the floor
-        pos_point_map_msg = self.convert_point_to_pose(point_msg)
-        self.target_publisher_pose_.publish(pos_point_map_msg)
-        self.target_publisher_.publish(point_msg)   
-        self.get_logger().info(f"Point publié: {point_msg.point.x}, {point_msg.point.y}, {point_msg.point.z}") 
+            point_msg2.header.frame_id = 'base_link'
+            point_msg2.point.x = 0.0
+            point_msg2.point.y = 0.0
+            point_msg2.point.z = 0.0
+
+        point_msg.point.z = 0.0 
+        pos_point_map_msg = self.convert_point_to_pose(point_msg2)
+        #self.target_publisher_pose_.publish(pos_point_map_msg)
+        self.target_publisher_.publish(point_msg2)   
 
     def get_z_meters(self, width, height, bin_mask):
         try:
