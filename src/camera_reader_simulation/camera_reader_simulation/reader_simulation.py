@@ -1,13 +1,14 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image 
-from geometry_msgs.msg import PointStamped
 from cv_bridge import CvBridge 
 import numpy as np
 import os
 import cv2
 from ament_index_python.packages import get_package_share_directory
 from ultralytics import YOLO 
+import tf2_ros
+from tf2_geometry_msgs import PointStamped, PoseStamped
 
 class CameraReaderSimulation(Node):
     """
@@ -16,20 +17,19 @@ class CameraReaderSimulation(Node):
     """
     
     def __init__(self):
-        super().__init__('onnx_camera_reader', allow_undeclared_parameters=True, automatically_declare_parameters_from_overrides=True)
+        super().__init__('reader_simulation_node', allow_undeclared_parameters=True, automatically_declare_parameters_from_overrides=True)
 
-        # --- Paramètres ---
-        self.camera_angle = self.get_parameter('camera_angle').get_parameter_value().double_value
-        self.camera_x = self.get_parameter('camera_x').get_parameter_value().double_value
-        self.camera_y = self.get_parameter('camera_y').get_parameter_value().double_value
-        self.camera_z = self.get_parameter('camera_z').get_parameter_value().double_value
+
+
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         
         # Nouveaux paramètres pour les topics
-        self.input_rgb_topic = self.declare_parameter('input_rgb_topic', '/camera/image_raw').value
-        self.input_depth_topic = self.declare_parameter('input_depth_topic', '/camera/depth_raw').value # Optionnel
+        self.input_rgb_topic = self.declare_parameter('input_rgb_topic', '/rgb_camera/image').value
+        self.input_depth_topic = self.declare_parameter('input_depth_topic', '/depth_camera/image').value # Optionnel
         self.conf_thres = 0.4
 
-        self.package_share_directory = get_package_share_directory('camera_reader')
+        self.package_share_directory = get_package_share_directory('camera_reader_simulation')
         
         # --- Chargement du modèle ONNX ---
         # Note: On utilise Ultralytics pour charger l'ONNX. C'est beaucoup plus robuste 
@@ -47,6 +47,7 @@ class CameraReaderSimulation(Node):
         # --- Publishers ---
         self.seg_publisher_ = self.create_publisher(Image, 'segmentation/image_raw', 2)
         self.target_publisher_ = self.create_publisher(PointStamped, 'robot/goal_point', 2)
+        self.target_publisher_pose_ = self.create_publisher(PoseStamped, '/goal_pose', 2)
         
         # --- Subscribers ---
         self.bridge = CvBridge()
@@ -72,8 +73,8 @@ class CameraReaderSimulation(Node):
         ### TODO à voir 
         # Intrinsèques Caméra (A ajuster selon votre Webcam/Raspberry Cam !)
         # Valeurs par défaut approximatives pour une image 640x480
-        self.fx = 500.0
-        self.fy = 500.0
+        self.fx = 554.3827056884766
+        self.fy = 554.3827056884766
         self.cx = 320.0
         self.cy = 240.0
 
@@ -100,7 +101,7 @@ class CameraReaderSimulation(Node):
 
             # 2. Inférence ONNX via Ultralytics
             # imgsz définit la taille d'entrée du modèle
-            results = self.model(frame, verbose=False, conf=self.conf_thres, imgsz=640) 
+            results = self.model(frame, verbose=False, conf=self.conf_thres, imgsz=320) 
             result = results[0] # On prend le premier résultat (batch 1)
 
             target_point = None
@@ -109,8 +110,7 @@ class CameraReaderSimulation(Node):
             # 3. Traitement des détections
             if result.masks is not None:
                 # Dessiner les masques sur l'image pour le debug
-                display_frame = result.plot(img=frame.copy(), alpha=0.5)
-                
+                display_frame = result[0].plot()                
                 # Trouver la personne avec le score le plus élevé
                 # Classes: 0 est souvent 'person' dans COCO
                 best_score = -1
@@ -150,9 +150,9 @@ class CameraReaderSimulation(Node):
 
                     # 4. Calcul de la position 3D
                     z_meters = 0.0
-                    
                     # Cas A: On a une image de profondeur
                     if self.latest_depth_img is not None:
+                        print("################ DEPTH ################################")
                         try:
                             # Redimensionner la profondeur si nécessaire pour matcher RGB
                             if self.latest_depth_img.shape[:2] != (height, width):
@@ -167,26 +167,29 @@ class CameraReaderSimulation(Node):
                                 valid_depths = depth_roi[depth_roi > 0]
                                 if valid_depths.size > 0:
                                     # Profondeur en mm convertie en mètres
-                                    z_meters = np.median(valid_depths) / 1000.0
+                                    z_meters = np.median(valid_depths)
+
                         except Exception as e:
                             self.get_logger().warn(f"Erreur calcul profondeur: {e}")
                     
                     # Cas B: Pas de profondeur, on estime une distance fixe ou arbitraire
+                    print("Z meters:", z_meters)
                     if z_meters == 0.0:
                          # Valeur par défaut si pas de caméra depth (ex: 2 mètres)
                          # Ou alors on publie juste l'angle via x, y
                         z_meters = 2.0 
 
                     # Projection 2D -> 3D (Pinfile Model)
-                    x_meters = (cX - self.cx) * z_meters / self.fx
+                    x_meters = -(cX - self.cx) * z_meters / self.fx
                     y_meters = (cY - self.cy) * z_meters / self.fy
                     
                     # Transformation vers le repère Robot (Rotation + Translation)
-                    target_point = self.transform_camera_to_robot(x_meters, y_meters, z_meters)
+                    target_point = (x_meters, y_meters, z_meters)
 
             # 5. Publication
             now = self.get_clock().now().to_msg()
-            
+            print(msg.header.frame_id)
+
             # Publier l'image segmentée
             seg_msg = self.bridge.cv2_to_imgmsg(display_frame, encoding="bgr8")
             seg_msg.header.stamp = now
@@ -196,46 +199,59 @@ class CameraReaderSimulation(Node):
             # Publier le point cible
             point_msg = PointStamped()
             point_msg.header.stamp = now
-            point_msg.header.frame_id = "base_link" # Ou le frame de votre robot
+            point_msg.header.frame_id = 'oak_d_pro_depth_optical_frame' # Ou le frame de votre robot
             
             if target_point is not None:
                 point_msg.point.x = target_point[0]
                 point_msg.point.y = target_point[1]
                 point_msg.point.z = target_point[2]
+                print("not________________none")
             else:
                 point_msg.point.x = 0.0
                 point_msg.point.y = 0.0
                 point_msg.point.z = 0.0
-                
-            self.target_publisher_.publish(point_msg)
+
+
+            try:
+                point_robot = self.tf_buffer.transform(point_msg, 'base_link')
+                point_robot.point.z = 0.0
+                self.convert_point_to_pose(point_robot)
+                # C. Publication du message transformé
+                self.target_publisher_.publish(point_robot)   
+                self.get_logger().info(f"Point publié dans base_link: {point_robot.point.x}, {point_robot.point.y}, {point_robot.point.z}")  
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+                        self.get_logger().warn(f"Attente de la transformation : {str(e)}")
 
         except Exception as e:
             self.get_logger().error(f"Erreur dans image_callback: {e}")
 
-    def transform_camera_to_robot(self, x_cam, y_cam, z_cam):
-        """Applique la rotation et translation définies dans les paramètres."""
-        # Rotation autour de X (pitch) basée sur camera_angle
-        # Note: Dans OpenCV Z est l'avant, X la droite, Y le bas.
-        # Sur un robot, souvent X est l'avant. Ajustez selon votre TF tree.
+    def convert_point_to_pose(self,point_msg):
+        pose_msg = PoseStamped()
         
-        theta = np.radians(180.0 - self.camera_angle)
-        point_cam = np.array([x_cam, y_cam, z_cam])
-
-        # Matrice de rotation (adaptée de votre code original)
-        c, s = np.cos(theta), np.sin(theta)
-        R_x = np.array([
-            [1, 0, 0],
-            [0, c, -s],
-            [0, s, c]
-        ])
-
-        point_rot = np.dot(R_x, point_cam)
-
-        x_rob = point_rot[0] + self.camera_x
-        y_rob = point_rot[1] + self.camera_y
-        z_rob = point_rot[2] + self.camera_z
+        # 1. On copie le header (important pour le timestamp et le frame_id 'map')
+        pose_msg.header = point_msg.header
         
-        return (x_rob, y_rob, z_rob)
+        # 2. On copie les coordonnées de position
+        pose_msg.pose.position.x = point_msg.point.x
+        pose_msg.pose.position.y = point_msg.point.y
+        pose_msg.pose.position.z = point_msg.point.z
+        
+        # 3. On définit une orientation par défaut
+        # Si on ne met rien, le robot risque de refuser le but car le quaternion (0,0,0,0) est invalide.
+        # On utilise souvent (0,0,0,1) pour dire "pas de rotation particulière".
+        pose_msg.pose.orientation.x = 0.0
+        pose_msg.pose.orientation.y = 0.0
+        pose_msg.pose.orientation.z = 0.0
+        pose_msg.pose.orientation.w = 1.0
+
+        pose_msg.header.stamp = rclpy.time.Time().to_msg()
+        pose_msg.header.frame_id = "base_link"
+
+        pose_sur_la_map = self.tf_buffer.transform(pose_msg, "map", timeout=rclpy.duration.Duration(seconds=1))
+
+        self.target_publisher_pose_.publish(pose_sur_la_map)
+        
+        return pose_msg
 
     def destroy_node(self):
         # Nettoyage
@@ -243,13 +259,12 @@ class CameraReaderSimulation(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = OnnxCameraReader()
+    node = CameraReaderSimulation()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:    
-        node.destroy_node()
         rclpy.shutdown()
 
 if __name__ == '__main__':

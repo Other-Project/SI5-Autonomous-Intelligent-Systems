@@ -1,6 +1,6 @@
 {
-    "input_width": 640,
-    "input_height": 384,
+    "input_width": 320,
+    "input_height": 320,
     "shapes": {
         "output0": [1, 116, 5040],
         "output1": [1, 32, 96, 160]
