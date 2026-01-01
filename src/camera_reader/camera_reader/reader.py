@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image, PointCloud2
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import String
 from sensor_msgs_py import point_cloud2 as pc2
 from cv_bridge import CvBridge 
 import json
@@ -12,7 +13,8 @@ import cv2
 import threading 
 from ament_index_python.packages import get_package_share_directory
 import std_msgs
-from .yolo_api import Segment 
+from .yolo_api import Segment
+import onnxruntime as ort
 
 # Camera settings
 CAMERA_ANGLE = 45.0 # degrees
@@ -28,6 +30,10 @@ YOLO_NUM_MASKS = 32
 
 # Mask threshold for depth extraction
 MASK_THRESHOLD = 0.5
+
+# Gesture detection parameters
+GESTURE_CONFIDENCE_THRESHOLD = 0.8
+GESTURE_MODEL_INPUT_SIZE = (640, 640)  # Input size for gesture model
 
 class CameraReader(Node):
     """ROS2 node for OAK-D camera reading and YOLO segmentation.
@@ -53,7 +59,7 @@ class CameraReader(Node):
         self.input_shape = [1, 3, self.preview_img_height, self.preview_img_width]
         
         blob_filename = "yolo11n-seg_384x640_shape_6.blob"
-        self.path_to_yolo_blob = os.path.join(self.package_share_directory, 'models', blob_filename)
+        self.path_to_yolo_blob = os.path.join(self.package_share_directory, 'models/segmentation', blob_filename)
 
         self._init_depthai_pipeline()
         
@@ -69,11 +75,15 @@ class CameraReader(Node):
         )
         self.yoloseg.prepare_input_for_oakd((self.preview_img_height, self.preview_img_width))
 
+        # Initialize gesture detection model
+        self._init_gesture_model()
+        
         # Initialize publishers
         self.seg_publisher_ = self.create_publisher(Image, 'segmentation/image_raw', 2)
         self.image_publisher_ = self.create_publisher(Image, 'segmentation/through/image_raw', 2)
         self.target_publisher_ = self.create_publisher(PoseStamped, 'robot/goal_point', 2)
         self.pcl_publisher_ = self.create_publisher(PointCloud2, 'camera/pointcloud', 2)
+        self.gesture_publisher_ = self.create_publisher(String, 'gesture/detected', 2)
         
         self.bridge = CvBridge()
         
@@ -84,6 +94,27 @@ class CameraReader(Node):
         
         self.get_logger().info('CameraReader started with Threading.')
 
+    def _init_gesture_model(self):
+        """Initialize the gesture detection model.
+        
+        Loads the ONNX gesture detection model.
+        The model is applied to the detected person bounding boxes.
+        """
+        gesture_model_path = os.path.join(self.package_share_directory, 'models/gestures', 'YOLOv10n_gestures_640_FP16.onnx')
+        
+        self.gesture_session = ort.InferenceSession(
+            gesture_model_path,
+            providers=['CPUExecutionProvider']
+        )
+        self.gesture_input_name = self.gesture_session.get_inputs()[0].name
+        self.gesture_output_names = [output.name for output in self.gesture_session.get_outputs()]
+        
+        # Load gesture class names if config exists
+        gesture_config_path = os.path.join(self.package_share_directory, 'data', 'gesture_config.json')
+        with open(gesture_config_path, 'r') as f:
+            gesture_config = json.load(f)
+            self.gesture_class_names = gesture_config.get('class_names', [])
+            
     def _init_depthai_pipeline(self):
         """Initialize the DepthAI pipeline for the OAK-D camera.
         
@@ -181,7 +212,7 @@ class CameraReader(Node):
         calibData = self.device.readCalibration()
         self.intrinsics = calibData.getCameraIntrinsics(dai.CameraBoardSocket.RGB, self.preview_img_width, self.preview_img_height)
 
-    def transform_camera_to_robot(self, points_np):
+    def _transform_camera_to_robot(self, points_np):
         """Transform points from camera frame to robot frame.
 
         Args:
@@ -197,7 +228,7 @@ class CameraReader(Node):
         
         return points_rotated
     
-    def compute_3d_point_from_depth(self, cX, cY, valid_depths):
+    def _compute_3d_point_from_depth(self, cX, cY, valid_depths):
         """Calculate 3D coordinates from 2D centroid and depth values.
 
         Args:
@@ -225,7 +256,7 @@ class CameraReader(Node):
 
         return np.array([[x_meters, y_meters, z_meters]])
     
-    def compute_mask_centroid(self, person_mask, target_idx):
+    def _compute_mask_centroid(self, person_mask, target_idx):
         """Calculate the centroid of a segmentation mask.
         
         Args:
@@ -248,7 +279,104 @@ class CameraReader(Node):
         
         return cX, cY
     
-    def publish_goal_point(self, point, now):
+    def _apply_letterbox(self, image, target_size, color=(114, 114, 114)):
+        """Resize image to the target size while preserving aspect ratio using padding.
+        
+        Args:
+            image (np.array): Image to resize.
+            target_size (tuple): Desired output size (width, height).
+            color (tuple): BGR color for the padding.
+            
+        Returns:
+            np.array: Letterboxed image.
+        """
+        h_orig, w_orig = image.shape[:2]
+        tw, th = target_size
+        
+        # Scale factor (ratio)
+        r = min(tw / w_orig, th / h_orig)
+        
+        # Compute resizing dimensions
+        new_w, new_h = int(round(w_orig * r)), int(round(h_orig * r))
+        
+        # Resize proportionally
+        if (w_orig, h_orig) != (new_w, new_h):
+            image = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+        
+        # Compute padding
+        dw = (tw - new_w) / 2
+        dh = (th - new_h) / 2
+        
+        top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+        left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+        
+        # Add borders
+        return cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
+
+    def _detect_gesture(self, frame, bbox):
+        """Detect gesture within a person's bounding box.
+        
+        Args:
+            frame (np.array): Full frame from camera.
+            bbox (np.array): Bounding box [x1, y1, x2, y2] of the person.
+            
+        Returns:
+            tuple: (gesture_name, confidence) or (None, 0.0) if no gesture detected.
+        """
+        if self.gesture_session is None:
+            return None, 0.0
+        
+        try:
+            # Extract and clip ROI from bounding box
+            x1, y1, x2, y2 = map(int, bbox)
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(frame.shape[1], x2), min(frame.shape[0], y2)
+            
+            roi = frame[y1:y2, x1:x2]
+            if roi.size == 0:
+                return None, 0.0
+            
+            # Apply letterboxing to preserve aspect ratio
+            roi_letterboxed = self._apply_letterbox(roi, GESTURE_MODEL_INPUT_SIZE)
+            
+            # Preprocess for ONNX inference
+            roi_rgb = cv2.cvtColor(roi_letterboxed, cv2.COLOR_BGR2RGB)
+            roi_normalized = roi_rgb.astype(np.float32) / 255.0
+            roi_transposed = np.transpose(roi_normalized, (2, 0, 1))
+            roi_input = np.expand_dims(roi_transposed, axis=0)
+            
+            # Run inference
+            outputs = self.gesture_session.run(
+                self.gesture_output_names,
+                {self.gesture_input_name: roi_input}
+            )
+            
+            predictions = outputs[0][0]
+            
+            if len(predictions.shape) == 2:
+                # Get best class and confidence
+                scores = predictions[:, 4]
+                best_idx = scores.argmax()
+                confidence = float(scores[best_idx])
+                
+                if confidence >= GESTURE_CONFIDENCE_THRESHOLD:
+                    class_id = int(predictions[best_idx, 5])
+                    gesture_name = (self.gesture_class_names[class_id] 
+                                   if class_id < len(self.gesture_class_names) 
+                                   else f"gesture_{class_id}")
+
+                    if gesture_name == "no_gesture":
+                        return None, 0.0
+
+                    return gesture_name, confidence
+            
+            return None, 0.0
+            
+        except Exception as e:
+            self.get_logger().warn(f'Gesture detection error: {e}')
+            return None, 0.0
+    
+    def _publish_goal_point(self, point, now):
         """Publish the target goal point as a PoseStamped message.
 
         Args:
@@ -293,7 +421,7 @@ class CameraReader(Node):
                     points = in_pcl.getPoints().reshape(-1, 3) / 1000.0
 
                     # Transform points to robot frame
-                    points_robot = self.transform_camera_to_robot(points)
+                    points_robot = self._transform_camera_to_robot(points)
 
                     header = std_msgs.msg.Header()
                     header.stamp = now
@@ -313,9 +441,10 @@ class CameraReader(Node):
                     # Find the person with the highest score
                     target_idx = np.argmax(self.yoloseg.scores)
                     person_mask = self.yoloseg.mask_maps[target_idx]
+                    person_bbox = self.yoloseg.boxes[target_idx]
                     
                     # Calculate centroid of the mask
-                    cX, cY = self.compute_mask_centroid(person_mask, target_idx)
+                    cX, cY = self._compute_mask_centroid(person_mask, target_idx)
 
                     # Extract depth values within the mask
                     depth_roi = depth_frame[person_mask > MASK_THRESHOLD] 
@@ -323,20 +452,28 @@ class CameraReader(Node):
 
                     if valid_depths.size > 0:
                         # Compute 3D coordinates from depth
-                        point_cam_np = self.compute_3d_point_from_depth(cX, cY, valid_depths)
+                        point_cam_np = self._compute_3d_point_from_depth(cX, cY, valid_depths)
 
                         # Transform to robot frame
-                        point_robot = self.transform_camera_to_robot(point_cam_np)[0]
+                        point_robot = self._transform_camera_to_robot(point_cam_np)[0]
 
                         # Publish the target point
-                        self.publish_goal_point(point_robot, now)
+                        self._publish_goal_point(point_robot, now)
 
                         # Visualize the centroid on the frame
                         cv2.circle(frame, (cX, cY), 5, (0, 255, 0), -1)
+                    
+                    # Gesture detection on person bounding box
+                    gesture_name, gesture_conf = self._detect_gesture(frame, person_bbox)
+                    if gesture_name is not None:
+                        gesture_msg = String()
+                        gesture_msg.data = gesture_name
+                        self.gesture_publisher_.publish(gesture_msg)
+                        self.get_logger().info(f'Detected gesture: {gesture_name} ({gesture_conf:.2f})')
                 
                 else:
                     # Publish the target point
-                    self.publish_goal_point([0.0, 0.0, 0.0], now)
+                    self._publish_goal_point([0.0, 0.0, 0.0], now)
             
                 # Publish images
                 ros_image_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
