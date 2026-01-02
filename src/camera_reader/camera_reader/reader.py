@@ -21,10 +21,10 @@ CAMERA_Y = 0.14
 CAMERA_Z = -0.10
 CAMERA_FPS = 30
 
-# YOLO parameters
-YOLO_CONFIDENCE_THRESHOLD = 0.1
-YOLO_IOU_THRESHOLD = 0.5
-YOLO_NUM_MASKS = 32
+# Segmentation parameters
+SEGMENTATION_CONFIDENCE_THRESHOLD = 0.1
+SEGMENTATION_IOU_THRESHOLD = 0.5
+SEGMENTATION_NUM_MASKS = 32
 
 # Mask threshold for depth extraction
 MASK_THRESHOLD = 0.5
@@ -63,9 +63,9 @@ class CameraReader(Node):
             input_height=self.preview_img_height,
             input_width=self.preview_img_width,
             class_names=self.model_data["class_names"],
-            conf_thres=YOLO_CONFIDENCE_THRESHOLD,
-            iou_thres=YOLO_IOU_THRESHOLD,
-            num_masks=YOLO_NUM_MASKS
+            conf_thres=SEGMENTATION_CONFIDENCE_THRESHOLD,
+            iou_thres=SEGMENTATION_IOU_THRESHOLD,
+            num_masks=SEGMENTATION_NUM_MASKS
         )
         self.yoloseg.prepare_input_for_oakd((self.preview_img_height, self.preview_img_width))
 
