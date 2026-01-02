@@ -131,21 +131,11 @@ class CameraReaderSimulation(Node):
             point_msg.point.z = target_point[2]
             try:
                 point_msg = self.tf_buffer.transform(point_msg, 'base_link')
-                flag_point_null = False
+                pos_point_map_msg = self.convert_point_to_pose(point_msg)
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
                 self.get_logger().warn(f"Attente transformation: {str(e)}")
-        elif self.last_pos_msg is not None:
-            point_msg = self.last_pos_msg
         else:
-            point_msg.header.frame_id = 'base_link'
-            point_msg.point.x = 0.0
-            point_msg.point.y = 0.0
-            point_msg.point.z = 0.0
-
-        point_msg.point.z = 0.0 
-        if not flag_point_null:
-            self.last_pos_msg = point_msg
-        pos_point_map_msg = self.convert_point_to_pose(point_msg)
+            return
 
         self.target_publisher_pose_.publish(pos_point_map_msg)
         self.target_publisher_.publish(point_msg)   
@@ -188,6 +178,7 @@ class CameraReaderSimulation(Node):
         pos_point_msg = PoseStamped()
         pos_point_msg.header = point_msg.header
         pos_point_msg.pose.position = point_msg.point
+        pos_point_msg.pose.position.z = 0.0
         pos_point_msg.pose.orientation.x = 0.0
         pos_point_msg.pose.orientation.y = 0.0
         pos_point_msg.pose.orientation.z = 0.0
