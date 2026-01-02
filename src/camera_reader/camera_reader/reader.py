@@ -1,7 +1,8 @@
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image 
-from geometry_msgs.msg import PointStamped
+from sensor_msgs.msg import Image, PointCloud2
+from geometry_msgs.msg import PoseStamped
+from sensor_msgs_py import point_cloud2 as pc2
 from cv_bridge import CvBridge 
 import json
 import depthai as dai
@@ -10,13 +11,23 @@ import os
 import cv2
 import threading 
 from ament_index_python.packages import get_package_share_directory
+import std_msgs
 from .yolo_api import Segment 
 
-# Constants
+# Camera settings
 CAMERA_ANGLE = 45.0 # degrees
 CAMERA_X = 0.0
 CAMERA_Y = 0.14
 CAMERA_Z = -0.10
+CAMERA_FPS = 30
+
+# YOLO parameters
+YOLO_CONFIDENCE_THRESHOLD = 0.1
+YOLO_IOU_THRESHOLD = 0.5
+YOLO_NUM_MASKS = 32
+
+# Mask threshold for depth extraction
+MASK_THRESHOLD = 0.5
 
 class CameraReader(Node):
     """ROS2 node for OAK-D camera reading and YOLO segmentation.
@@ -36,7 +47,6 @@ class CameraReader(Node):
         with open(config_path, "r") as config:
             self.model_data = json.load(config)
 
-
         # Set image dimensions and input shape
         self.preview_img_width = self.model_data["input_width"]
         self.preview_img_height = self.model_data["input_height"]
@@ -53,16 +63,17 @@ class CameraReader(Node):
             input_height=self.preview_img_height,
             input_width=self.preview_img_width,
             class_names=self.model_data["class_names"],
-            conf_thres=0.1,
-            iou_thres=0.5,
-            num_masks=32
+            conf_thres=YOLO_CONFIDENCE_THRESHOLD,
+            iou_thres=YOLO_IOU_THRESHOLD,
+            num_masks=YOLO_NUM_MASKS
         )
         self.yoloseg.prepare_input_for_oakd((self.preview_img_height, self.preview_img_width))
 
         # Initialize publishers
         self.seg_publisher_ = self.create_publisher(Image, 'segmentation/image_raw', 2)
         self.image_publisher_ = self.create_publisher(Image, 'segmentation/through/image_raw', 2)
-        self.target_publisher_ = self.create_publisher(PointStamped, 'robot/goal_point', 2)
+        self.target_publisher_ = self.create_publisher(PoseStamped, 'robot/goal_point', 2)
+        self.pcl_publisher_ = self.create_publisher(PointCloud2, 'camera/pointcloud', 2)
         
         self.bridge = CvBridge()
         
@@ -89,7 +100,7 @@ class CameraReader(Node):
         cam_rgb.setPreviewSize(self.preview_img_width, self.preview_img_height)
         cam_rgb.setInterleaved(False)
         cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
-        cam_rgb.setFps(30)
+        cam_rgb.setFps(CAMERA_FPS)
 
         # Mono cameras for depth
         monoLeft = self.pipeline.create(dai.node.MonoCamera)
@@ -118,6 +129,11 @@ class CameraReader(Node):
         manip_depth.initialConfig.setFrameType(dai.ImgFrame.Type.RAW16)
         stereo.depth.link(manip_depth.inputImage)
 
+        # Point cloud 
+        pointcloud = self.pipeline.create(dai.node.PointCloud)
+        pointcloud.initialConfig.setSparse(False)
+        stereo.depth.link(pointcloud.inputDepth)
+
         # Neural network node
         nn = self.pipeline.create(dai.node.NeuralNetwork)
         nn.setBlobPath(self.path_to_yolo_blob)
@@ -138,6 +154,11 @@ class CameraReader(Node):
         xout_depth.setStreamName("depth")
         manip_depth.out.link(xout_depth.input)
 
+        # Point cloud output
+        xout_pcl = self.pipeline.create(dai.node.XLinkOut)
+        xout_pcl.setStreamName("pcl")
+        pointcloud.outputPointCloud.link(xout_pcl.input)
+
         # Start the pipeline
         self.device.startPipeline(self.pipeline)
 
@@ -145,10 +166,110 @@ class CameraReader(Node):
         self.q_rgb = self.device.getOutputQueue(name="rgb_pass", maxSize=4, blocking=True)
         self.q_nn = self.device.getOutputQueue(name="nn_results", maxSize=4, blocking=True)
         self.q_depth = self.device.getOutputQueue(name="depth", maxSize=4, blocking=True)
+        self.q_pcl = self.device.getOutputQueue(name="pcl", maxSize=2, blocking=False)
+
+        ## Rotation matrix for camera to robot frame transformation
+        theta = np.radians(180.0 - CAMERA_ANGLE)
+        c, s = np.cos(theta), np.sin(theta)
+        self.rotation_matrix = np.array([
+            [1, 0, 0],
+            [0, c, -s],
+            [0, s, c]
+        ])
 
         # Get camera intrinsics
         calibData = self.device.readCalibration()
         self.intrinsics = calibData.getCameraIntrinsics(dai.CameraBoardSocket.RGB, self.preview_img_width, self.preview_img_height)
+
+    def transform_camera_to_robot(self, points_np):
+        """Transform points from camera frame to robot frame.
+
+        Args:
+            points_np (np.array): Nx3 array of points in camera
+        Returns:
+            np.array: Nx3 array of points in robot frame
+        """
+        points_rotated = points_np @ self.rotation_matrix.T
+
+        points_rotated[:, 0] += CAMERA_X
+        points_rotated[:, 1] += CAMERA_Y
+        points_rotated[:, 2] += CAMERA_Z
+        
+        return points_rotated
+    
+    def compute_3d_point_from_depth(self, cX, cY, valid_depths):
+        """Calculate 3D coordinates from 2D centroid and depth values.
+
+        Args:
+            cX (int): X coordinate of the centroid in the image.
+            cY (int): Y coordinate of the centroid in the image.
+            valid_depths (np.array): Array of valid depth values within the mask.
+        Returns:
+            np.array: 3D coordinates (X, Y, Z) in meters.
+        """
+        # Compute average depth
+        avg_depth = np.median(valid_depths)
+        
+        # Focal lengths
+        fx = self.intrinsics[0][0]
+        fy = self.intrinsics[1][1]
+
+        # Optical centers
+        cx_int = self.intrinsics[0][2]
+        cy_int = self.intrinsics[1][2]
+
+        # Convert to real-world coordinates
+        z_meters = avg_depth / 1000.0
+        x_meters = (cX - cx_int) * z_meters / fx
+        y_meters = -(cY - cy_int) * z_meters / fy
+
+        return np.array([[x_meters, y_meters, z_meters]])
+    
+    def compute_mask_centroid(self, person_mask, target_idx):
+        """Calculate the centroid of a segmentation mask.
+        
+        Args:
+            person_mask (np.array): Binary mask of the detected object
+            target_idx (int): Index of the target in the YOLO results
+            
+        Returns:
+            tuple: (cX, cY) coordinates of the centroid
+        """
+        M = cv2.moments(person_mask)
+        if M["m00"] != 0:
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+        else:
+            # Fallback to bounding box center if mask is empty
+            box = self.yoloseg.boxes[target_idx]
+            cX = int((box[0] + box[2]) / 2)
+            cY = int((box[1] + box[3]) / 2)
+            self.get_logger().warn("Empty mask, using Bounding Box center")
+        
+        return cX, cY
+    
+    def publish_goal_point(self, point, now):
+        """Publish the target goal point as a PoseStamped message.
+
+        Args:
+            point (list): 3D coordinates [X, Y, Z] in meters.
+            now (rclpy.time.Time): Current ROS2 time for the message header.            
+        """
+        pose_msg = PoseStamped()
+        pose_msg.header.stamp = now
+        pose_msg.header.frame_id = "base_link"
+
+        pose_msg.pose.position.x = point[0]
+        pose_msg.pose.position.y = point[1]
+        pose_msg.pose.position.z = point[2] 
+
+        # No rotation
+        pose_msg.pose.orientation.w = 1.0 
+        pose_msg.pose.orientation.x = 0.0
+        pose_msg.pose.orientation.y = 0.0
+        pose_msg.pose.orientation.z = 0.0
+
+        self.target_publisher_.publish(pose_msg)
 
     def _run_camera_loop(self):
         """Main loop for image capture and processing.
@@ -161,11 +282,25 @@ class CameraReader(Node):
                 in_rgb = self.q_rgb.get() 
                 in_nn = self.q_nn.get()
                 in_depth = self.q_depth.get() 
+                in_pcl = self.q_pcl.tryGet()
 
                 # Process frames
                 frame = in_rgb.getCvFrame()
                 depth_frame = in_depth.getFrame()
                 now = self.get_clock().now().to_msg()
+
+                if in_pcl is not None:
+                    points = in_pcl.getPoints().reshape(-1, 3) / 1000.0
+
+                    # Transform points to robot frame
+                    points_robot = self.transform_camera_to_robot(points)
+
+                    header = std_msgs.msg.Header()
+                    header.stamp = now
+                    header.frame_id = "base_link"
+
+                    pc2_msg = pc2.create_cloud_xyz32(header, points_robot)
+                    self.pcl_publisher_.publish(pc2_msg)
 
                 # Get NN outputs
                 layer0 = np.array(in_nn.getLayerFp16("output0")).reshape(self.model_data["shapes"]["output0"])
@@ -180,83 +315,28 @@ class CameraReader(Node):
                     person_mask = self.yoloseg.mask_maps[target_idx]
                     
                     # Calculate centroid of the mask
-                    M = cv2.moments(person_mask)
-                    if M["m00"] != 0:
-                        cX = int(M["m10"] / M["m00"])
-                        cY = int(M["m01"] / M["m00"])
-                    else:
-                        box = self.yoloseg.boxes[target_idx] 
-                        cX = int((box[0] + box[2]) / 2)
-                        cY = int((box[1] + box[3]) / 2)
-
-                        self.get_logger().warn("Empty mask, using Bounding Box center")
+                    cX, cY = self.compute_mask_centroid(person_mask, target_idx)
 
                     # Extract depth values within the mask
-                    depth_roi = depth_frame[person_mask > 0.5]
+                    depth_roi = depth_frame[person_mask > MASK_THRESHOLD] 
                     valid_depths = depth_roi[depth_roi > 0]
 
                     if valid_depths.size > 0:
-                        # Compute average depth
-                        avg_depth = np.median(valid_depths)
-                        
-                        # Focal lengths
-                        fx = self.intrinsics[0][0]
-                        fy = self.intrinsics[1][1]
+                        # Compute 3D coordinates from depth
+                        point_cam_np = self.compute_3d_point_from_depth(cX, cY, valid_depths)
 
-                        # Optical centers
-                        cx_int = self.intrinsics[0][2]
-                        cy_int = self.intrinsics[1][2]
-
-                        # Convert real-world coordinates
-                        z_meters = avg_depth / 1000.0
-                        x_meters = (cX - cx_int) * z_meters / fx
-                        y_meters = (cY - cy_int) * z_meters / fy
-
-                        # Rotate point from camera frame to robot frame
-                        theta = np.radians(180.0 - CAMERA_ANGLE)
-                        point_cam = np.array([x_meters, y_meters, z_meters])
-
-                        c, s = np.cos(theta), np.sin(theta)
-                        R_x = np.array([
-                            [1, 0, 0],
-                            [0, c, -s],
-                            [0, s, c]
-                        ])
-
-                        point_robot_np = np.dot(R_x, point_cam)
-
-                        x_rob = point_robot_np[0]
-                        y_rob = point_robot_np[1]
-                        z_rob = point_robot_np[2]
-
-                        # Translate point based on camera position on robot
-                        x_rob += CAMERA_X
-                        y_rob += CAMERA_Y
-                        z_rob += CAMERA_Z
+                        # Transform to robot frame
+                        point_robot = self.transform_camera_to_robot(point_cam_np)[0]
 
                         # Publish the target point
-                        point_msg = PointStamped()
-                        point_msg.header.stamp = now
-                        point_msg.header.frame_id = "base_link"
-                        point_msg.point.x = x_rob
-                        point_msg.point.y = y_rob
-                        point_msg.point.z = z_rob
-
-                        self.target_publisher_.publish(point_msg)
+                        self.publish_goal_point(point_robot, now)
 
                         # Visualize the centroid on the frame
                         cv2.circle(frame, (cX, cY), 5, (0, 255, 0), -1)
                 
                 else:
                     # Publish the target point
-                    point_msg = PointStamped()
-                    point_msg.header.stamp = now
-                    point_msg.header.frame_id = "base_link"
-                    point_msg.point.x = 0.
-                    point_msg.point.y = 0.
-                    point_msg.point.z = 0.
-
-                    self.target_publisher_.publish(point_msg)
+                    self.publish_goal_point([0.0, 0.0, 0.0], now)
             
                 # Publish images
                 ros_image_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")

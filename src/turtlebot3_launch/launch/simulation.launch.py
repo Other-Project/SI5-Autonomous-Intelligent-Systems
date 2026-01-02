@@ -6,10 +6,9 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
     AppendEnvironmentVariable,
-    GroupAction,
     IncludeLaunchDescription,
 )
-from launch_ros.actions import Node, SetRemap
+from launch_ros.actions import Node
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
@@ -35,10 +34,6 @@ def generate_launch_description():
         "models",
         "custom_box",
         "model.sdf",
-    )
-
-    rviz_config_path = os.path.join(
-        get_package_share_directory("turtlebot3_descriptions"), "rviz", "model.rviz"
     )
 
     ld = LaunchDescription()
@@ -73,15 +68,6 @@ def generate_launch_description():
     ld.add_action(
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(launch_file_dir, "robot_state_publisher.launch.py")
-            ),
-            launch_arguments={"use_sim_time": use_sim_time}.items(),
-        )
-    )
-
-    ld.add_action(
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
                 os.path.join(launch_file_dir, "spawn_turtlebot3.launch.py")
             ),
             launch_arguments={"x_pose": x_pose, "y_pose": y_pose}.items(),
@@ -89,48 +75,10 @@ def generate_launch_description():
     )
 
     ld.add_action(
-        Node(
-            package="rviz2",
-            executable="rviz2",
-            name="rviz2",
-            output="screen",
-            parameters=[{"use_sim_time": use_sim_time}],
-            arguments=["-d", rviz_config_path],
-        ),
-    )
-
-    ld.add_action(
-        GroupAction(
-            actions=[
-                SetRemap(src="/cmd_vel_nav", dst=f"/cmd_vel"),
-                IncludeLaunchDescription(
-                    PythonLaunchDescriptionSource(
-                        os.path.join(
-                            get_package_share_directory("nav2_bringup"),
-                            "launch",
-                            "navigation_launch.py",
-                        )
-                    ),
-                    launch_arguments={
-                        "use_sim_time": use_sim_time,
-                        "params_file": os.path.join(
-                            get_package_share_directory("turtlebot3_launch"),
-                            "config",
-                            "nav2_params.yaml",
-                        ),
-                    }.items(),
-                ),
-            ]
-        )
-    )
-
-    ld.add_action(
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(
-                    get_package_share_directory("slam_toolbox"),
-                    "launch",
-                    "online_async_launch.py",
+                    get_package_share_directory("turtlebot3_launch"), "launch", "common.launch.py"
                 )
             ),
             launch_arguments={"use_sim_time": use_sim_time}.items(),
