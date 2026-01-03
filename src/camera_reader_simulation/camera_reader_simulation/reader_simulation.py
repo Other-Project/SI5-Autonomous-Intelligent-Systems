@@ -233,7 +233,7 @@ class CameraReaderSimulation(Node):
         pos_point_msg.pose.orientation.y = 0.0
         pos_point_msg.pose.orientation.z = 0.0
         pos_point_msg.pose.orientation.w = 1.0
-        return self.tf_buffer.transform(pos_point_msg, "map", timeout=rclpy.duration.Duration(seconds=1))
+        return pos_point_msg
 
 def main(args=None):
     rclpy.init(args=args)
