@@ -4,8 +4,9 @@ from rclpy.action import ActionClient
 from geometry_msgs.msg import PointStamped, PoseStamped
 from nav_msgs.msg import Odometry
 from nav2_msgs.action import NavigateToPose
+from std_msgs.msg import String
 from tf2_ros import Buffer, TransformListener
-import tf2_geometry_msgs  # Indispensable pour transformer des Poses
+import tf2_geometry_msgs # Needed to transform PoseStamped
 
 
 class Pilot(Node):
@@ -18,11 +19,15 @@ class Pilot(Node):
         self.odom_subscriber = self.create_subscription(
             Odometry, "/odom", self.odom_callback, 10
         )
+        self.gesture_subscriber = self.create_subscription(
+            String, "/gesture/detected", self.gesture_callback, 10
+        )
 
         self._action_client = ActionClient(self, NavigateToPose, "navigate_to_pose")
 
         self.current_pose = None
         self.goal_pose = None
+        self.is_paused = False
 
         self.get_logger().info("Pilot node started.")
 
@@ -31,6 +36,21 @@ class Pilot(Node):
         self.get_logger().info(f"Current pose updated: {msg.pose.pose.position.x}, {msg.pose.pose.position.y}")
         if self.goal_pose is not None:
             self.go_to_goal()
+
+    def gesture_callback(self, msg):
+        gesture = msg.data
+        if gesture == "stop":
+            if not self.is_paused:
+                self.is_paused = True
+                self.get_logger().info("STOP gesture detected - Pilot PAUSED")
+
+                # Cancel current navigation goal
+                if hasattr(self, '_goal_handle') and self._goal_handle is not None:
+                    self._goal_handle.cancel_goal_async()
+        elif gesture == "fist":
+            if self.is_paused:
+                self.is_paused = False
+                self.get_logger().info("Pilot RESUMED")
 
     def goal_callback(self, msg):
         self.goal_pose = msg
@@ -41,6 +61,10 @@ class Pilot(Node):
     def go_to_goal(self):
         if self.current_pose is None or self.goal_pose is None:
             self.get_logger().warning("Waiting for current pose and goal pose...")
+            return
+        
+        if self.is_paused:
+            self.get_logger().info("Pilot is PAUSED - ignoring goal")
             return
         
         self.get_logger().info("Transforming goal point to global frame...")
@@ -68,6 +92,7 @@ class Pilot(Node):
             return
 
         self.get_logger().info("Goal accepted by Nav2")
+        self._goal_handle = goal_handle
         self._get_result_future = goal_handle.get_result_async()
         self._get_result_future.add_done_callback(self.get_result_callback)
 
