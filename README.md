@@ -29,4 +29,5 @@ Install ROS Jazzy to run this project
 
 ```sh
 sudo apt install ros-jazzy-depthai-ros ros-jazzy-turtlebot3-navigation2
+pip install --break-system-packages ultralytics depthai
 ```
