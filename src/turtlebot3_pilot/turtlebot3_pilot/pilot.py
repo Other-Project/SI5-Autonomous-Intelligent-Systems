@@ -22,23 +22,21 @@ class Pilot(Node):
         self.current_pose = None
         self.goal_pose = None
 
+        self.timer = self.create_timer(1, self.go_to_goal)
+
         self.get_logger().info("Pilot node started.")
 
     def odom_callback(self, msg):
         self.current_pose = msg
         self.get_logger().debug(f"Current pose updated: {msg.pose.pose.position.x}, {msg.pose.pose.position.y}")
-        if self.goal_pose is not None:
-            self.go_to_goal()
 
     def goal_callback(self, msg):
         self.goal_pose = msg
         self.get_logger().debug(f"Received new goal point: {msg.point.x}, {msg.point.y}")
-        if self.current_pose is not None:
-            self.go_to_goal()
 
     def go_to_goal(self):
         if self.current_pose is None or self.goal_pose is None:
-            self.get_logger().warning("Waiting for current pose and goal pose...")
+            self.get_logger().debug("Waiting for current pose and/or goal pose...")
             return
         
         self.get_logger().debug("Transforming goal point to global frame...")
