@@ -4,8 +4,6 @@ from rclpy.action import ActionClient
 from geometry_msgs.msg import PointStamped, PoseStamped
 from nav_msgs.msg import Odometry
 from nav2_msgs.action import NavigateToPose
-from tf2_ros import Buffer, TransformListener
-import tf2_geometry_msgs  # Indispensable pour transformer des Poses
 
 
 class Pilot(Node):
@@ -28,13 +26,13 @@ class Pilot(Node):
 
     def odom_callback(self, msg):
         self.current_pose = msg
-        self.get_logger().info(f"Current pose updated: {msg.pose.pose.position.x}, {msg.pose.pose.position.y}")
+        self.get_logger().debug(f"Current pose updated: {msg.pose.pose.position.x}, {msg.pose.pose.position.y}")
         if self.goal_pose is not None:
             self.go_to_goal()
 
     def goal_callback(self, msg):
         self.goal_pose = msg
-        self.get_logger().info(f"Received new goal point: {msg.point.x}, {msg.point.y}")
+        self.get_logger().debug(f"Received new goal point: {msg.point.x}, {msg.point.y}")
         if self.current_pose is not None:
             self.go_to_goal()
 
@@ -43,7 +41,7 @@ class Pilot(Node):
             self.get_logger().warning("Waiting for current pose and goal pose...")
             return
         
-        self.get_logger().info("Transforming goal point to global frame...")
+        self.get_logger().debug("Transforming goal point to global frame...")
 
         pose_global = PoseStamped()
         pose_global.header.frame_id = "map"
@@ -64,10 +62,10 @@ class Pilot(Node):
     def goal_response_callback(self, future):
         goal_handle = future.result()
         if not goal_handle.accepted:
-            self.get_logger().info("Goal rejected by Nav2")
+            self.get_logger().error("Goal rejected by Nav2")
             return
 
-        self.get_logger().info("Goal accepted by Nav2")
+        self.get_logger().debug("Goal accepted by Nav2")
         self._get_result_future = goal_handle.get_result_async()
         self._get_result_future.add_done_callback(self.get_result_callback)
 
