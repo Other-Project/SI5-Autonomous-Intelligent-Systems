@@ -62,7 +62,6 @@ class CameraReaderSimulation(Node):
         self.get_logger().info(f'Node started. Listening to {self.input_rgb_topic}')
 
         self.is_ready = False
-        self.last_pos_msg = None
 
     def camera_info_callback(self, msg):
         self.fx = msg.k[0]
