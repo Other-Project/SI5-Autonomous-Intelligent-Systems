@@ -8,6 +8,7 @@ from launch.actions import (
     AppendEnvironmentVariable,
     GroupAction,
     IncludeLaunchDescription,
+    SetEnvironmentVariable,
 )
 from launch_ros.actions import Node, SetRemap
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -60,7 +61,7 @@ def generate_launch_description():
     ld.add_action(
         GroupAction(
             actions=[
-                SetRemap(src="/cmd_vel_nav", dst=f"/cmd_vel"),
+                SetRemap(src="/cmd_vel_nav", dst="/cmd_vel"),
                 IncludeLaunchDescription(
                     PythonLaunchDescriptionSource(
                         os.path.join(
@@ -76,6 +77,7 @@ def generate_launch_description():
                             "config",
                             "nav2_params.yaml",
                         ),
+                        "log_level": "warn",
                     }.items(),
                 ),
             ]
@@ -83,15 +85,20 @@ def generate_launch_description():
     )
 
     ld.add_action(
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(
-                    get_package_share_directory("slam_toolbox"),
-                    "launch",
-                    "online_async_launch.py",
+        GroupAction(
+            actions=[
+                SetEnvironmentVariable('RCUTILS_LOGGING_MIN_SEVERITY', 'WARN'),
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(
+                        os.path.join(
+                            get_package_share_directory("slam_toolbox"),
+                            "launch",
+                            "online_async_launch.py",
+                        )
+                    ),
+                    launch_arguments={"use_sim_time": use_sim_time}.items(),
                 )
-            ),
-            launch_arguments={"use_sim_time": use_sim_time}.items(),
+            ]
         )
     )
 

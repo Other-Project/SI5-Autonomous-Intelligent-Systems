@@ -72,7 +72,7 @@ controller_server:
     controller_frequency: 20.0
     costmap_update_timeout: 0.30
     min_x_velocity_threshold: 0.001
-    min_y_velocity_threshold: 0.5
+    min_y_velocity_threshold: 0.0
     min_theta_velocity_threshold: 0.001
     failure_tolerance: 0.3
     progress_checker_plugins: ["progress_checker"]
@@ -98,9 +98,11 @@ controller_server:
       yaw_goal_tolerance: 0.25
     FollowPath:
       plugin: "nav2_mppi_controller::MPPIController"
-      time_steps: 56
-      model_dt: 0.05
-      batch_size: 2000
+      batch_size: 600
+      time_steps: 20
+      model_dt: 0.1
+      visualize: false
+      regenerate_noises: false
       ax_max: 3.0
       ax_min: -3.0
       ay_max: 3.0
@@ -119,8 +121,6 @@ controller_server:
       temperature: 0.3
       gamma: 0.015
       motion_model: "DiffDrive"
-      visualize: true
-      regenerate_noises: true
       TrajectoryVisualizer:
         trajectory_step: 5
         time_step: 3
@@ -190,7 +190,7 @@ controller_server:
 local_costmap:
   local_costmap:
     ros__parameters:
-      update_frequency: 10.0
+      update_frequency: 5.0
       publish_frequency: 2.0
       global_frame: odom
       robot_base_frame: base_link

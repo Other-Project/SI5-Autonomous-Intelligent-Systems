@@ -93,7 +93,7 @@ class CameraReaderSimulation(Node):
             display_frame = frame.copy()
 
             if not self.is_ready:
-                self.get_logger().info(f"Waiting for camera info reception")
+                self.get_logger().info("Waiting for camera info reception")
 
             if self.is_ready and result.masks is not None:
                 display_frame = result[0].plot()
@@ -180,6 +180,7 @@ class CameraReaderSimulation(Node):
                 point_msg = self.tf_buffer.transform(point_msg, 'map')
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
                 self.get_logger().warn(f"Waiting for transformation: {str(e)}")
+                return
         else:
             return
 
