@@ -1,0 +1,28 @@
+[project]
+name = "AIS"
+version = "0.1.0"
+description = "A ROS powered person-following Turtlebot controlled through hand gestures"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.4.0",
+    "opencv-python>=4.11.0.86",
+]
+
+[project.optional-dependencies]
+deploy = [
+    "depthai>=3.2.1",
+]
+sim = [
+    "torch>=2.9.1",
+    "ultralytics>=8.3.248",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch" }
+torchvision = { index = "pytorch" }
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
