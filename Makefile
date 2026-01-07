@@ -6,12 +6,14 @@ build_ros:
 		colcon build
 
 sim: build_ros
-	. .venv/bin/activate && \
+	export PYTHONPATH='.venv/lib/python3.12/site-packages' && \
+		. .venv/bin/activate && \
 		. ./install/setup.sh && \
 		ros2 launch turtlebot3_launch simulation.launch.py
 
 real: build_ros
-	. .venv/bin/activate && \
+	export PYTHONPATH='.venv/lib/python3.12/site-packages' && \
+		. .venv/bin/activate && \
 		. ./install/setup.sh && \
 		ros2 launch turtlebot3_launch real.launch.py
 
