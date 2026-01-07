@@ -10,7 +10,7 @@ import cv2
 from ament_index_python.packages import get_package_share_directory
 from ultralytics import YOLO 
 import tf2_ros
-from tf2_geometry_msgs import PointStamped, PoseStamped
+from tf2_geometry_msgs import PointStamped
 
 # Segmentation model parameters
 SEGMENTATION_CONFIDENCE_THRESHOLD = 0.4
@@ -49,7 +49,6 @@ class CameraReaderSimulation(Node):
 
         self.seg_publisher_ = self.create_publisher(Image, 'segmentation/image_raw', 2)
         self.target_publisher_ = self.create_publisher(PointStamped, 'robot/goal_point', 2)
-        self.target_publisher_pose_ = self.create_publisher(PoseStamped, '/goal_pose', 2)
         self.gesture_publisher_ = self.create_publisher(String, 'gesture/detected', 2)
 
         self.bridge = CvBridge()
@@ -169,7 +168,6 @@ class CameraReaderSimulation(Node):
             self.get_logger().warn(f"Error in process_gesture: {e}")   
 
     def send_point_msg(self, target_point):
-        pos_point_map_msg = None
         point_msg = PointStamped()
         point_msg.header.stamp = rclpy.time.Time().to_msg() # Avoid time problems 
 
@@ -179,15 +177,13 @@ class CameraReaderSimulation(Node):
             point_msg.point.y = -target_point[0]
             point_msg.point.z = target_point[2]
             try:
-                point_msg = self.tf_buffer.transform(point_msg, 'base_link')
-                pos_point_map_msg = self.convert_point_to_pose(point_msg)
+                point_msg = self.tf_buffer.transform(point_msg, 'map')
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
                 self.get_logger().warn(f"Waiting for transformation: {str(e)}")
         else:
             return
 
-        self.target_publisher_pose_.publish(pos_point_map_msg)
-        self.target_publisher_.publish(point_msg)   
+        self.target_publisher_.publish(point_msg)
 
     def get_z_meters(self, width, height, bin_mask):
         try:
@@ -222,17 +218,6 @@ class CameraReaderSimulation(Node):
                 best_box = box.xyxy[0].cpu().numpy()
         
         return best_box, best_mask
-
-    def convert_point_to_pose(self, point_msg):
-        pos_point_msg = PoseStamped()
-        pos_point_msg.header = point_msg.header
-        pos_point_msg.pose.position = point_msg.point
-        pos_point_msg.pose.position.z = 0.0
-        pos_point_msg.pose.orientation.x = 0.0
-        pos_point_msg.pose.orientation.y = 0.0
-        pos_point_msg.pose.orientation.z = 0.0
-        pos_point_msg.pose.orientation.w = 1.0
-        return pos_point_msg
 
 def main(args=None):
     rclpy.init(args=args)
