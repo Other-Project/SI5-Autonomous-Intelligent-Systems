@@ -178,12 +178,12 @@ class CameraReaderSimulation(Node):
             point_msg.point.z = target_point[2]
             try:
                 point_msg = self.tf_buffer.transform(point_msg, 'map')
+                point_msg.point.z = 0.0
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
                 self.get_logger().warn(f"Waiting for transformation: {str(e)}")
                 return
         else:
             return
-
         self.target_publisher_.publish(point_msg)
 
     def get_z_meters(self, width, height, bin_mask):
