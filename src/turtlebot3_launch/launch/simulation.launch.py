@@ -109,4 +109,13 @@ def generate_launch_description():
         )
     )
 
+    ld.add_action(
+        Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='camera_stf',
+            arguments=['0', '0', '0', '-3.14', '0', '0.0', 'oak_d_pro_camera', 'oak_d_pro_depth_optical_frame']
+        )
+    )
+
     return ld
