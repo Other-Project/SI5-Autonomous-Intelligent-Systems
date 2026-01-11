@@ -111,4 +111,13 @@ def generate_launch_description():
         )
     )
 
+    ld.add_action(
+        Node(
+            package="turtlebot3_orchestrator",
+            executable="orchestrator",
+            name="turtlebot3_orchestrator",
+            output="screen",
+        )
+    )
+
     return ld
