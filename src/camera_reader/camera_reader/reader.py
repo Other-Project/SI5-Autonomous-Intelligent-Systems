@@ -15,6 +15,7 @@ from ament_index_python.packages import get_package_share_directory
 import std_msgs
 from .yolo_api import Segment 
 import tf2_ros
+import tf2_geometry_msgs # Required for transforming PointStamped
 import onnxruntime as ort
 
 # Camera settings
