@@ -56,6 +56,7 @@ def generate_launch_description():
                         "use_sim_time": use_sim_time,
                         "robot_description": robot_description_config,
                         "frame_prefix": PythonExpression(["'", frame_prefix, "/'"]),
+                        'publish_frequency': 10.0
                     }
                 ],
             ),

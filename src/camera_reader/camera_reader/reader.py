@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image, PointCloud2
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PointStamped
 from std_msgs.msg import String
 from sensor_msgs_py import point_cloud2 as pc2
 from cv_bridge import CvBridge 
@@ -13,7 +13,8 @@ import cv2
 import threading 
 from ament_index_python.packages import get_package_share_directory
 import std_msgs
-from .yolo_api import Segment
+from .yolo_api import Segment 
+import tf2_ros
 import onnxruntime as ort
 
 # Camera settings
@@ -23,10 +24,10 @@ CAMERA_Y = 0.14
 CAMERA_Z = -0.10
 CAMERA_FPS = 30
 
-# YOLO parameters
-YOLO_CONFIDENCE_THRESHOLD = 0.1
-YOLO_IOU_THRESHOLD = 0.5
-YOLO_NUM_MASKS = 32
+# Segmentation parameters
+SEGMENTATION_CONFIDENCE_THRESHOLD = 0.1
+SEGMENTATION_IOU_THRESHOLD = 0.5
+SEGMENTATION_NUM_MASKS = 32
 
 # Mask threshold for depth extraction
 MASK_THRESHOLD = 0.5
@@ -69,9 +70,9 @@ class CameraReader(Node):
             input_height=self.preview_img_height,
             input_width=self.preview_img_width,
             class_names=self.model_data["class_names"],
-            conf_thres=YOLO_CONFIDENCE_THRESHOLD,
-            iou_thres=YOLO_IOU_THRESHOLD,
-            num_masks=YOLO_NUM_MASKS
+            conf_thres=SEGMENTATION_CONFIDENCE_THRESHOLD,
+            iou_thres=SEGMENTATION_IOU_THRESHOLD,
+            num_masks=SEGMENTATION_NUM_MASKS
         )
         self.yoloseg.prepare_input_for_oakd((self.preview_img_height, self.preview_img_width))
 
@@ -81,10 +82,13 @@ class CameraReader(Node):
         # Initialize publishers
         self.seg_publisher_ = self.create_publisher(Image, 'segmentation/image_raw', 2)
         self.image_publisher_ = self.create_publisher(Image, 'segmentation/through/image_raw', 2)
-        self.target_publisher_ = self.create_publisher(PoseStamped, 'robot/goal_point', 2)
+        self.target_publisher_ = self.create_publisher(PointStamped, 'robot/goal_point', 2)
         self.pcl_publisher_ = self.create_publisher(PointCloud2, 'camera/pointcloud', 2)
         self.gesture_publisher_ = self.create_publisher(String, 'gesture/detected', 2)
         
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+
         self.bridge = CvBridge()
         
         # Initialize threading for camera loop
@@ -383,21 +387,20 @@ class CameraReader(Node):
             point (list): 3D coordinates [X, Y, Z] in meters.
             now (rclpy.time.Time): Current ROS2 time for the message header.            
         """
-        pose_msg = PoseStamped()
-        pose_msg.header.stamp = now
-        pose_msg.header.frame_id = "base_link"
+        point_msg = PointStamped()
+        point_msg.header.stamp = now
+        point_msg.header.frame_id = "base_link"
 
-        pose_msg.pose.position.x = point[0]
-        pose_msg.pose.position.y = point[1]
-        pose_msg.pose.position.z = point[2] 
+        point_msg.point.x = point[0]
+        point_msg.point.y = point[1]
+        point_msg.point.z = point[2]
+        try:
+            point_msg = self.tf_buffer.transform(point_msg, 'map')
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+            self.get_logger().warn(f"Waiting for transformation: {str(e)}")
+            return
 
-        # No rotation
-        pose_msg.pose.orientation.w = 1.0 
-        pose_msg.pose.orientation.x = 0.0
-        pose_msg.pose.orientation.y = 0.0
-        pose_msg.pose.orientation.z = 0.0
-
-        self.target_publisher_.publish(pose_msg)
+        self.target_publisher_.publish(point_msg)
 
     def _run_camera_loop(self):
         """Main loop for image capture and processing.

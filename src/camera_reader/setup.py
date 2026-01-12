@@ -18,7 +18,12 @@ setup(
         (os.path.join('share', package_name, 'models/segmentation'), glob('camera_reader/models/segmentation/*.blob')),
         (os.path.join('share', package_name, 'models/gestures'), glob('camera_reader/models/gestures/*.onnx')),
     ],
-    install_requires=['setuptools'],
+    install_requires=[
+        'setuptools',
+        'numpy',
+        'opencv-python',
+        'depthai'
+    ],
     zip_safe=True,
     maintainer='evan',
     maintainer_email='evan.galli@etu.univ-cotedazur.fr',

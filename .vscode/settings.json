@@ -1,4 +1,9 @@
 {
+
+    "python.analysis.extraPaths": [
+        "/opt/ros/jazzy/lib/python3.12/site-packages/",
+        ".venv/lib/python3.12/site-packages/"
+    ],
     "urdf-visualizer.packages": {
         "turtlebot3_gazebo": "./src/turtlebot3_gazebo",
         "turtlebot3_descriptions": "./src/turtlebot3_descriptions"

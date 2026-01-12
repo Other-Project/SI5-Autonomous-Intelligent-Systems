@@ -93,10 +93,28 @@ def generate_launch_description():
                 '-name', 'my_custom_box',
                 '-file', box_sdf_path,
                 '-x', '1.0',
-                '-y', '-0.5',
+                '-y', '0.0',
                 '-z', '1.0'
             ],
             output='screen',
+        )
+    )
+
+    ld.add_action(
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(get_package_share_directory("camera_reader_simulation"), "launch", "camera.launch.py")
+            ),
+            launch_arguments={"name": "camera"}.items(),
+        )
+    )
+
+    ld.add_action(
+        Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='camera_stf',
+            arguments=['0', '0', '0', '-3.14', '0', '0.0', 'oak_d_pro_camera', 'oak_d_pro_depth_optical_frame']
         )
     )
 
