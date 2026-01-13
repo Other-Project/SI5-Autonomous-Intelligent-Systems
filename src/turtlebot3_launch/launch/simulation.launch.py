@@ -24,6 +24,11 @@ def generate_launch_description():
     x_pose = LaunchConfiguration("x_pose", default="-2.0")
     y_pose = LaunchConfiguration("y_pose", default="-0.5")
 
+
+    rviz_config_path = os.path.join(
+        get_package_share_directory("turtlebot3_descriptions"), "rviz", "model.rviz"
+    )
+
     world = os.path.join(
         get_package_share_directory("turtlebot3_gazebo"),
         "worlds",
@@ -130,4 +135,16 @@ def generate_launch_description():
             actions=[camera_stf_node]
         )
     )
+    
+    ld.add_action(
+        Node(
+            package="rviz2",
+            executable="rviz2",
+            name="rviz2",
+            output="screen",
+            parameters=[{"use_sim_time": use_sim_time}],
+            arguments=["-d", rviz_config_path],
+        ),
+    )
+
     return ld

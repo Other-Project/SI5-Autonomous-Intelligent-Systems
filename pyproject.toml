@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-real = [
+deploy = [
     "depthai==3.2.1",
 ]
 sim = [
