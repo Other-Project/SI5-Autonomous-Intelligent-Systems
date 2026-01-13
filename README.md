@@ -25,8 +25,18 @@
 
 ## Installation
 
-Install ROS Jazzy to run this project
+Install [ROS Jazzy](https://docs.ros.org/en/jazzy/index.html) and [uv](https://docs.astral.sh/uv/) to run this project
+
+Then install the following packages:
 
 ```sh
 sudo apt install ros-jazzy-depthai-ros ros-jazzy-turtlebot3-navigation2
 ```
+
+## Usage
+
+* `make sim` to start the project in simulation mode
+* `make real` to start the project in a deployed environment
+* `make teleop` to manually control the robot with keyboard inputs
+* `make clean` to clean the workspace
+* `make mass_shooting` to kill all remaining simulation processes
