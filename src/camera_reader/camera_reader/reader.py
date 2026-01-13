@@ -202,9 +202,9 @@ class CameraReader(Node):
         self.device.startPipeline(self.pipeline)
 
         # Get output queues
-        self.q_rgb = self.device.getOutputQueue(name="rgb_pass", maxSize=4, blocking=True)
-        self.q_nn = self.device.getOutputQueue(name="nn_results", maxSize=4, blocking=True)
-        self.q_depth = self.device.getOutputQueue(name="depth", maxSize=4, blocking=True)
+        self.q_rgb = self.device.getOutputQueue(name="rgb_pass", maxSize=2, blocking=False)
+        self.q_nn = self.device.getOutputQueue(name="nn_results", maxSize=2, blocking=False)
+        self.q_depth = self.device.getOutputQueue(name="depth", maxSize=2, blocking=False)
         self.q_pcl = self.device.getOutputQueue(name="pcl", maxSize=2, blocking=False)
 
         ## Rotation matrix for camera to robot frame transformation
