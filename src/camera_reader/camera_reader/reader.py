@@ -424,7 +424,9 @@ class CameraReader(Node):
                 depth_frame = in_depth.getFrame()
                 now = self.get_clock().now().to_msg()
 
-                if in_pcl is not None:
+                if (in_pcl is not None and
+                    self.pcl_publisher_.get_subscription_count() > 0):
+
                     points = in_pcl.getPoints().reshape(-1, 3) / 1000.0
 
                     # Transform points to robot frame
@@ -483,15 +485,17 @@ class CameraReader(Node):
                     self._publish_goal_point([0.0, 0.0, 0.0], now)
             
                 # Publish images
-                ros_image_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
-                ros_image_msg.header.stamp = now
-                self.image_publisher_.publish(ros_image_msg)
+                if self.image_publisher_.get_subscription_count() > 0:
+                    ros_image_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+                    ros_image_msg.header.stamp = now
+                    self.image_publisher_.publish(ros_image_msg)
 
                 # Draw segmentation masks on frame
-                display_frame = self.yoloseg.draw_masks(frame, draw_scores=True, mask_alpha=0.5)
-                ros_seg_msg = self.bridge.cv2_to_imgmsg(display_frame, encoding="bgr8")
-                ros_seg_msg.header.stamp = now
-                self.seg_publisher_.publish(ros_seg_msg)
+                if self.seg_publisher_.get_subscription_count() > 0:
+                    display_frame = self.yoloseg.draw_masks(frame, draw_scores=True, mask_alpha=0.5)
+                    ros_seg_msg = self.bridge.cv2_to_imgmsg(display_frame, encoding="bgr8")
+                    ros_seg_msg.header.stamp = now
+                    self.seg_publisher_.publish(ros_seg_msg)
 
             except RuntimeError:
                 break
