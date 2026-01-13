@@ -19,7 +19,7 @@ real: build_ros
 		. ./install/setup.sh && \
 		ros2 launch turtlebot3_launch real.launch.py
 
-deploy:
+deploy: build_ros
 	uv sync --extra deploy
 	export ROS_DOMAIN_ID=6 && \
 	export PYTHONPATH='.venv/lib/python3.12/site-packages' && \
