@@ -1,17 +1,18 @@
 all: sim
 
 build_ros:
-	uv sync --all-extras
 	. .venv/bin/activate && \
 		colcon build
 
 sim: build_ros
+	uv sync --extra sim
 	export PYTHONPATH='.venv/lib/python3.12/site-packages' && \
 		. .venv/bin/activate && \
 		. ./install/setup.sh && \
 		ros2 launch turtlebot3_launch simulation.launch.py
 
 real: build_ros
+	uv sync --extra real
 	export PYTHONPATH='.venv/lib/python3.12/site-packages' && \
 		. .venv/bin/activate && \
 		. ./install/setup.sh && \
