@@ -79,6 +79,7 @@ class CameraReader(Node):
 
         # Initialize gesture detection model
         self._init_gesture_model()
+        self.last_gesture = None
         
         # Initialize publishers
         self.seg_publisher_ = self.create_publisher(Image, 'segmentation/image_raw', 2)
@@ -113,6 +114,7 @@ class CameraReader(Node):
         )
         self.gesture_input_name = self.gesture_session.get_inputs()[0].name
         self.gesture_output_names = [output.name for output in self.gesture_session.get_outputs()]
+        self.last_gesture = None
         
         # Load gesture class names if config exists
         gesture_config_path = os.path.join(self.package_share_directory, 'data', 'gesture_config.json')
@@ -370,9 +372,10 @@ class CameraReader(Node):
                                    if class_id < len(self.gesture_class_names) 
                                    else f"gesture_{class_id}")
 
-                    if gesture_name == "no_gesture":
+                    if gesture_name == "no_gesture" or gesture_name == self.last_gesture:
                         return None, 0.0
 
+                    self.last_gesture = gesture_name
                     return gesture_name, confidence
             
             return None, 0.0
@@ -473,7 +476,7 @@ class CameraReader(Node):
                         gesture_msg = String()
                         gesture_msg.data = gesture_name
                         self.gesture_publisher_.publish(gesture_msg)
-                        self.get_logger().info(f'Detected gesture: {gesture_name} ({gesture_conf:.2f})')
+                        self.get_logger().debug(f'Detected gesture: {gesture_name} ({gesture_conf:.2f})')
                 
                 else:
                     # Publish the target point
