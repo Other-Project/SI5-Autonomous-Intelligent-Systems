@@ -22,10 +22,6 @@ def generate_launch_description():
 
     use_sim_time = LaunchConfiguration("use_sim_time", default="false")
 
-    rviz_config_path = os.path.join(
-        get_package_share_directory("turtlebot3_descriptions"), "rviz", "model.rviz"
-    )
-
     ld = LaunchDescription()
 
     ld.add_action(
@@ -45,17 +41,6 @@ def generate_launch_description():
             ),
             launch_arguments={"use_sim_time": use_sim_time}.items(),
         )
-    )
-
-    ld.add_action(
-        Node(
-            package="rviz2",
-            executable="rviz2",
-            name="rviz2",
-            output="screen",
-            parameters=[{"use_sim_time": use_sim_time}],
-            arguments=["-d", rviz_config_path],
-        ),
     )
 
     ld.add_action(

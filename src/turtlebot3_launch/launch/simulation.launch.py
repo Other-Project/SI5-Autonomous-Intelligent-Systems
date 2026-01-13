@@ -11,6 +11,7 @@ from launch.actions import (
 from launch_ros.actions import Node
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+from launch.actions import TimerAction
 
 
 def generate_launch_description():
@@ -22,6 +23,11 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time", default="true")
     x_pose = LaunchConfiguration("x_pose", default="-2.0")
     y_pose = LaunchConfiguration("y_pose", default="-0.5")
+
+
+    rviz_config_path = os.path.join(
+        get_package_share_directory("turtlebot3_descriptions"), "rviz", "model.rviz"
+    )
 
     world = os.path.join(
         get_package_share_directory("turtlebot3_gazebo"),
@@ -109,13 +115,36 @@ def generate_launch_description():
         )
     )
 
+    camera_stf_node = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='camera_stf',
+        arguments=[
+            '--x', '0', '--y', '0', '--z', '0',
+            '--yaw', '-3.14', '--pitch', '0', '--roll', '0',
+            '--frame-id', 'oak_d_pro_camera',
+            '--child-frame-id', 'oak_d_pro_depth_optical_frame'
+        ],
+        parameters=[{'use_sim_time': use_sim_time}], 
+        output='screen'
+    )
+
+    ld.add_action(
+        TimerAction(
+            period=5.0,
+            actions=[camera_stf_node]
+        )
+    )
+    
     ld.add_action(
         Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='camera_stf',
-            arguments=['0', '0', '0', '-3.14', '0', '0.0', 'oak_d_pro_camera', 'oak_d_pro_depth_optical_frame']
-        )
+            package="rviz2",
+            executable="rviz2",
+            name="rviz2",
+            output="screen",
+            parameters=[{"use_sim_time": use_sim_time}],
+            arguments=["-d", rviz_config_path],
+        ),
     )
 
     return ld
