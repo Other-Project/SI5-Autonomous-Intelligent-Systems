@@ -107,7 +107,7 @@ class CameraReader(Node):
         Loads the ONNX gesture detection model.
         The model is applied to the detected person bounding boxes.
         """
-        gesture_model_path = os.path.join(self.package_share_directory, 'models/gestures', 'YOLOv10n_gestures_640_FP16.onnx')
+        gesture_model_path = os.path.join(self.package_share_directory, 'models/gestures', 'YOLOv10n_gestures_640_INT8.onnx')
         
         self.gesture_session = ort.InferenceSession(
             gesture_model_path,
