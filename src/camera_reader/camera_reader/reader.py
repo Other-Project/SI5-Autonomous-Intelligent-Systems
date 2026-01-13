@@ -26,7 +26,7 @@ CAMERA_Z = -0.10
 CAMERA_FPS = 30
 
 # Segmentation parameters
-SEGMENTATION_CONFIDENCE_THRESHOLD = 0.1
+SEGMENTATION_CONFIDENCE_THRESHOLD = 0.4
 SEGMENTATION_IOU_THRESHOLD = 0.5
 SEGMENTATION_NUM_MASKS = 32
 
@@ -60,7 +60,7 @@ class CameraReader(Node):
         self.preview_img_height = self.model_data["input_height"]
         self.input_shape = [1, 3, self.preview_img_height, self.preview_img_width]
         
-        blob_filename = "yolo11n-seg_384x640_shape_6.blob"
+        blob_filename = "yolo11n-seg_384x640_shave_8.blob"
         self.path_to_yolo_blob = os.path.join(self.package_share_directory, 'models/segmentation', blob_filename)
 
         self._init_depthai_pipeline()
