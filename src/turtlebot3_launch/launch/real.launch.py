@@ -17,7 +17,7 @@ def generate_launch_description():
                     get_package_share_directory("turtlebot3_launch"), "launch", "common_computer.launch.py"
                 )
             ),
-            launch_arguments={"use_sim_time": False}.items(),
+            launch_arguments={"use_sim_time": "false"}.items(),
         )
     )
 

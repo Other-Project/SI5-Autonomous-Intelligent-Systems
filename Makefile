@@ -22,7 +22,7 @@ real: build_ros
 deploy: build_ros
 	uv sync --extra deploy
 	export ROS_DOMAIN_ID=5 && \
-	export PYTHONPATH='.venv/lib/python3.12/site-packages' && \
+	export PYTHONPATH='.venv/lib/python3.10/site-packages' && \
 		. .venv/bin/activate && \
 		. ./install/setup.sh && \
 		ros2 launch turtlebot3_launch deploy.launch.py
