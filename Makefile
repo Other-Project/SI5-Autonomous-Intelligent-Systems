@@ -7,6 +7,7 @@ build_ros:
 sim: build_ros
 	uv sync --extra sim
 	export ROS_DOMAIN_ID=5 && \
+	export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp && \
 	export PYTHONPATH='.venv/lib/python3.12/site-packages' && \
 		. .venv/bin/activate && \
 		. ./install/setup.sh && \
@@ -14,6 +15,7 @@ sim: build_ros
 
 real: build_ros
 	export ROS_DOMAIN_ID=5 && \
+	export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp && \
 	export PYTHONPATH='.venv/lib/python3.12/site-packages' && \
 		. .venv/bin/activate && \
 		. ./install/setup.sh && \
@@ -22,6 +24,8 @@ real: build_ros
 deploy: build_ros
 	uv sync --extra deploy
 	export ROS_DOMAIN_ID=5 && \
+	export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp && \
+	export ROS_LOG_LEVEL="rmw_cyclonedds_cpp=error" && \
 	export PYTHONPATH='.venv/lib/python3.10/site-packages' && \
 		. .venv/bin/activate && \
 		. ./install/setup.sh && \
