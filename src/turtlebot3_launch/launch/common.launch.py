@@ -44,50 +44,6 @@ def generate_launch_description():
     )
 
     ld.add_action(
-        GroupAction(
-            actions=[
-                SetRemap(src="/cmd_vel_nav", dst="/cmd_vel"),
-                IncludeLaunchDescription(
-                    PythonLaunchDescriptionSource(
-                        os.path.join(
-                            get_package_share_directory("nav2_bringup"),
-                            "launch",
-                            "navigation_launch.py",
-                        )
-                    ),
-                    launch_arguments={
-                        "use_sim_time": use_sim_time,
-                        "params_file": os.path.join(
-                            get_package_share_directory("turtlebot3_launch"),
-                            "config",
-                            "nav2_params.yaml",
-                        ),
-                        "log_level": "warn",
-                    }.items(),
-                ),
-            ]
-        )
-    )
-
-    ld.add_action(
-        GroupAction(
-            actions=[
-                SetEnvironmentVariable('RCUTILS_LOGGING_MIN_SEVERITY', 'WARN'),
-                IncludeLaunchDescription(
-                    PythonLaunchDescriptionSource(
-                        os.path.join(
-                            get_package_share_directory("slam_toolbox"),
-                            "launch",
-                            "online_async_launch.py",
-                        )
-                    ),
-                    launch_arguments={"use_sim_time": use_sim_time}.items(),
-                )
-            ]
-        )
-    )
-
-    ld.add_action(
         Node(
             package="turtlebot3_pilot",
             executable="pilot",

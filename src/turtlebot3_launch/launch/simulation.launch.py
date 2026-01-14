@@ -25,10 +25,6 @@ def generate_launch_description():
     y_pose = LaunchConfiguration("y_pose", default="-0.5")
 
 
-    rviz_config_path = os.path.join(
-        get_package_share_directory("turtlebot3_descriptions"), "rviz", "model.rviz"
-    )
-
     world = os.path.join(
         get_package_share_directory("turtlebot3_gazebo"),
         "worlds",
@@ -92,6 +88,17 @@ def generate_launch_description():
     )
 
     ld.add_action(
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(
+                    get_package_share_directory("turtlebot3_launch"), "launch", "common_computer.launch.py"
+                )
+            ),
+            launch_arguments={"use_sim_time": use_sim_time}.items(),
+        )
+    )
+
+    ld.add_action(
         Node(
             package='ros_gz_sim',
             executable='create',
@@ -133,26 +140,6 @@ def generate_launch_description():
         TimerAction(
             period=5.0,
             actions=[camera_stf_node]
-        )
-    )
-    
-    ld.add_action(
-        Node(
-            package="rviz2",
-            executable="rviz2",
-            name="rviz2",
-            output="screen",
-            parameters=[{"use_sim_time": use_sim_time}],
-            arguments=["-d", rviz_config_path],
-        ),
-    )
-
-    ld.add_action(
-        Node(
-            package="turtlebot3_orchestrator",
-            executable="orchestrator",
-            name="turtlebot3_orchestrator",
-            output="screen",
         )
     )
 

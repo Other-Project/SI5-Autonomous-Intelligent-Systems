@@ -3,33 +3,21 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch_ros.actions import Node
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import    IncludeLaunchDescription
 
 
 def generate_launch_description():
     ld = LaunchDescription()
 
-    rviz_config_path = os.path.join(
-        get_package_share_directory("turtlebot3_descriptions"), "rviz", "model.rviz"
-    )
-
     ld.add_action(
-        Node(
-            package="rviz2",
-            executable="rviz2",
-            name="rviz2",
-            output="screen",
-            parameters=[{"use_sim_time": False}],
-            arguments=["-d", rviz_config_path],
-        ),
-    )
-
-    ld.add_action(
-        Node(
-            package="turtlebot3_orchestrator",
-            executable="orchestrator",
-            name="turtlebot3_orchestrator",
-            output="screen",
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(
+                    get_package_share_directory("turtlebot3_launch"), "launch", "common_computer.launch.py"
+                )
+            ),
+            launch_arguments={"use_sim_time": False}.items(),
         )
     )
 
