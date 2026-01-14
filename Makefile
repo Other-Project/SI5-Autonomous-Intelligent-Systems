@@ -6,14 +6,14 @@ build_ros:
 
 sim: build_ros
 	uv sync --extra sim
-	export ROS_DOMAIN_ID=6 && \
+	export ROS_DOMAIN_ID=5 && \
 	export PYTHONPATH='.venv/lib/python3.12/site-packages' && \
 		. .venv/bin/activate && \
 		. ./install/setup.sh && \
 		ros2 launch turtlebot3_launch simulation.launch.py
 
 real: build_ros
-	export ROS_DOMAIN_ID=6 && \
+	export ROS_DOMAIN_ID=5 && \
 	export PYTHONPATH='.venv/lib/python3.12/site-packages' && \
 		. .venv/bin/activate && \
 		. ./install/setup.sh && \
@@ -21,14 +21,14 @@ real: build_ros
 
 deploy: build_ros
 	uv sync --extra deploy
-	export ROS_DOMAIN_ID=6 && \
+	export ROS_DOMAIN_ID=5 && \
 	export PYTHONPATH='.venv/lib/python3.12/site-packages' && \
 		. .venv/bin/activate && \
 		. ./install/setup.sh && \
 		ros2 launch turtlebot3_launch deploy.launch.py
 
 teleop:
-	export ROS_DOMAIN_ID=6 && \
+	export ROS_DOMAIN_ID=5 && \
 	export TURTLEBOT3_MODEL=burger && \
 		ros2 run turtlebot3_teleop teleop_keyboard
 
