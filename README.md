@@ -35,10 +35,13 @@ Then install the following packages:
 sudo apt install ros-jazzy-depthai-ros ros-jazzy-turtlebot3-navigation2
 ```
 
+Setup the Luxonis OAK-D Pro camera by following the instructions [here](https://docs.luxonis.com/hardware/platform/deploy/usb-deployment-guide/).
+
 ## Usage
 
 * `make sim` to start the project in simulation mode
-* `make real` to start the project in a deployed environment
+* `make deploy` to start the project in a deployed environment
+* `make real` to start the project on a computer connected to the Turtlebot3
 * `make teleop` to manually control the robot with keyboard inputs
 * `make clean` to clean the workspace
 * `make mass_shooting` to kill all remaining simulation processes

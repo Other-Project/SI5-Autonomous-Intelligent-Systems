@@ -1,3 +1,4 @@
+import tf2_geometry_msgs
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image, PointCloud2
@@ -71,10 +72,10 @@ class CameraReader(Node):
         self.yoloseg.prepare_input_for_oakd((self.preview_img_height, self.preview_img_width))
 
         # Initialize publishers
-        self.seg_publisher_ = self.create_publisher(Image, 'segmentation/image_raw', 2)
-        self.image_publisher_ = self.create_publisher(Image, 'segmentation/through/image_raw', 2)
-        self.target_publisher_ = self.create_publisher(PointStamped, 'robot/goal_point', 2)
-        self.pcl_publisher_ = self.create_publisher(PointCloud2, 'camera/pointcloud', 2)
+        self.image_publisher_ = self.create_publisher(Image, '/rgb_camera/image', 2)
+        self.pcl_publisher_ = self.create_publisher(PointCloud2, '/depth_camera/image', 2)
+        self.seg_publisher_ = self.create_publisher(Image, '/segmentation/image_raw', 2)
+        self.target_publisher_ = self.create_publisher(PointStamped, '/robot/goal_point', 2)
         
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
