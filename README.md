@@ -96,3 +96,93 @@ The remaining functionality, including mask processing, gesture detection, and c
 The pilot package is responsible for sending a PoseStamped message to Nav2 to calculate the path required to reach a destination. This PoseStamped is received via the `/pilot/goal_point` ROS topic.
 
 ## Orchestrator
+
+### Managed Nodes (ROS 2 Lifecycle)
+
+ROS 2 provides the concept of **managed nodes**, also called **LifecycleNodes**. Unlike regular nodes, a LifecycleNode follows a predefined state machine that allows its execution to be explicitly controlled at runtime.
+
+A managed node transitions between steady states (`unconfigured`, `inactive`, `active`) using explicit transitions such as `configure`, `activate`, and `deactivate`.  
+
+This makes it possible to start or stop a node’s behavior deterministically, without restarting the node itself.
+
+### Usage in this project
+
+In this project, the navigation **Pilot node** is implemented as a **LifecycleNode** and is controlled by the **Orchestrator**.
+
+The **Orchestrator** centralizes all high-level decision logic:
+- It listens to gesture commands via `/gesture/detected` from the **Camera Reader Node** to control the Pilot lifecycle (`fist` to activate, `stop` to deactivate).
+- It subscribes to `/robot/goal_point` (Camera Reader) and `/odom` (Gazebo) and preprocesses navigation goals before forwarding them to the Pilot.
+- It applies goal update filtering, ensuring that a new target is sufficiently different from the previously forwarded one before being sent to the Pilot.
+- It performs the conversion and validation from `PointStamped` to `PoseStamped`, forwarding only preprocessed navigation goals to the Pilot.
+
+Only when the Pilot is active and the new goal is considered valid does the orchestrator forward a preprocessed `PoseStamped` message to `/pilot/goal_point`.
+
+This design keeps the Pilot node simple and focused on navigation execution, while the orchestrator handles gesture control, safety checks, and goal validation.
+
+### Architecture overview
+
+```mermaid
+graph TB
+    subgraph Camera["Camera Reader Node"]
+        C1["/gesture/detected"]
+        C2["/robot/goal_point"]
+    end
+    
+    subgraph Gazebo["Gazebo Simulation"]
+        G1["/odom"]
+    end
+    
+    subgraph Orchestrator["Orchestrator Node"]
+        O1[Listen /gesture/detected]
+        O2[Listen /robot/goal_point]
+        O3[Listen /odom]
+        O4[Process distance check]
+        O5[Convert Point to Pose]
+        O6[Publish /pilot/goal_point]
+        O7[Manage Pilot lifecycle]
+        
+        O1 --> |fist| O7
+        O1 --> |stop| O7
+        O2 --> O4
+        O3 --> O4
+        O4 --> O5
+        O5 --> O6
+    end
+    
+    subgraph Pilot["Pilot Node (Lifecycle)"]
+        direction TB
+        
+        P_START([Start])
+        P_UNCONF[UNCONFIGURED]
+        P_INACT[INACTIVE]
+        P_ACT[ACTIVE]
+        
+        P_START --> P_UNCONF
+        P_UNCONF --> |configure| P_INACT
+        P_INACT --> |activate| P_ACT
+        P_ACT --> |deactivate| P_INACT
+        
+        P_SUB[Listen /pilot/goal_point]
+        P_TIMER[Timer 1Hz]
+        P_NAV2[Send to Nav2]
+        P_CANCEL[Cancel Nav2 goal]
+        
+        P_ACT --> P_SUB
+        P_SUB --> P_TIMER
+        P_TIMER --> P_NAV2
+        P_ACT -.-> |on deactivate| P_CANCEL
+    end
+    
+    C1 --> O1
+    C2 --> O2
+    G1 --> O3
+    O6 --> P_SUB
+    O7 --> |configure at start| P_UNCONF
+    O7 --> |activate on fist| P_INACT
+    O7 --> |deactivate on stop| P_ACT
+    
+    style Camera fill:#cfe2f3
+    style Gazebo fill:#fff2cc
+    style Orchestrator fill:#d9ead3
+    style Pilot fill:#fce5cd
+```
