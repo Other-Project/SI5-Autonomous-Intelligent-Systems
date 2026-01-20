@@ -6,7 +6,6 @@ build_ros:
 
 sim: build_ros
 	uv sync --extra sim
-	export ROS_DOMAIN_ID=5 && \
 	export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp && \
 	export PYTHONPATH='.venv/lib/python3.12/site-packages' && \
 		. .venv/bin/activate && \
