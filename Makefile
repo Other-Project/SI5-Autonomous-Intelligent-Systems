@@ -12,6 +12,11 @@ sim: build_ros
 		. ./install/setup.sh && \
 		ros2 launch turtlebot3_launch simulation.launch.py
 
+sim_teleop:
+	export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp && \
+	export TURTLEBOT3_MODEL=burger && \
+		ros2 run turtlebot3_teleop teleop_keyboard
+
 real: build_ros
 	export ROS_DOMAIN_ID=5 && \
 	export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp && \
