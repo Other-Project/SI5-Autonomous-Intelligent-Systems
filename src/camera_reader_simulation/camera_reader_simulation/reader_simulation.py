@@ -40,7 +40,13 @@ class CameraReaderSimulation(Node):
         model_path = os.path.join(package_share_directory, 'models', 'yolo11n-seg.onnx')
         self.model = YOLO(model_path, task='segment')
 
-        gesture_model_path = os.path.join(package_share_directory, 'models', 'YOLOv10n_gestures_640_FP16.onnx')
+        gesture_package_share = get_package_share_directory('camera_reader')
+        gesture_model_path = os.path.join(
+            gesture_package_share,
+            'models',
+            'gestures',
+            'yolov10n_gestures_fp32.onnx'
+        )
         self.gesture_model = YOLO(gesture_model_path, task='detect')
         self.last_gesture = None
 
