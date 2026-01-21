@@ -122,25 +122,4 @@ def generate_launch_description():
         )
     )
 
-    camera_stf_node = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='camera_stf',
-        arguments=[
-            '--x', '0', '--y', '0', '--z', '0',
-            '--yaw', '-3.14', '--pitch', '0', '--roll', '0',
-            '--frame-id', 'oak_d_pro_camera',
-            '--child-frame-id', 'oak_d_pro_depth_optical_frame'
-        ],
-        parameters=[{'use_sim_time': use_sim_time}], 
-        output='screen'
-    )
-
-    ld.add_action(
-        TimerAction(
-            period=5.0,
-            actions=[camera_stf_node]
-        )
-    )
-
     return ld
