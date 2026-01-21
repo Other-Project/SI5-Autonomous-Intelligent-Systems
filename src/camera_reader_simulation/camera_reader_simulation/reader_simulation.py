@@ -42,6 +42,7 @@ class CameraReaderSimulation(Node):
 
         gesture_model_path = os.path.join(package_share_directory, 'models', 'YOLOv10n_gestures_640_FP16.onnx')
         self.gesture_model = YOLO(gesture_model_path, task='detect')
+        self.last_gesture = None
 
         gesture_config_path = os.path.join(package_share_directory, 'data', 'gesture_config.json')
         with open(gesture_config_path, 'r') as f:
@@ -158,10 +159,14 @@ class CameraReaderSimulation(Node):
                     else:
                         gesture_name = self.gesture_model.names[cls_id] 
 
-                    if gesture_name != "no_gesture":
+                    self.get_logger().info(f"Gesture detected: {gesture_name}, Confidence: {conf:.2f}, Last: {self.last_gesture}")
+
+                    if gesture_name != "no_gesture" and gesture_name != self.last_gesture:
                         msg = String()
                         msg.data = gesture_name
                         self.gesture_publisher_.publish(msg)
+                        self.last_gesture = gesture_name
+
                         self.get_logger().info(f"Simulation Gesture: {gesture_name} ({conf:.2f})")
 
         except Exception as e:
