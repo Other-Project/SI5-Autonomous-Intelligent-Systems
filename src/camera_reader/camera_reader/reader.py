@@ -252,7 +252,7 @@ class CameraReader(Node):
         x_meters = (cX - cx_int) * z_meters / fx
         y_meters = -(cY - cy_int) * z_meters / fy
 
-        return np.array([[x_meters, y_meters, z_meters]])
+        return [x_meters, y_meters, z_meters]
     
     def _compute_mask_centroid(self, person_mask, target_idx):
         """Calculate the centroid of a segmentation mask.
