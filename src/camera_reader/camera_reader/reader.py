@@ -91,13 +91,13 @@ class CameraReader(Node):
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         self.bridge = CvBridge()
+
+        self.running = True
         
+        # Initialize threading for camera loop and gesture detection
         self.gesture_queue = queue.Queue(maxsize=1)
         self.gesture_thread = threading.Thread(target=self._gesture_worker_loop)
         self.gesture_thread.start()
-
-        # Initialize threading for camera loop
-        self.running = True
         self.thread = threading.Thread(target=self._run_camera_loop)
         self.thread.start()
         
