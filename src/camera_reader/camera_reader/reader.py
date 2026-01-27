@@ -79,7 +79,7 @@ class CameraReader(Node):
 
         # Initialize gesture detection model
         self._init_gesture_model()
-        self.last_gesture = None
+
         
         # Initialize publishers
         self.seg_publisher_ = self.create_publisher(Image, 'segmentation/image_raw', 2)
@@ -374,8 +374,6 @@ class CameraReader(Node):
         """Independant thread loop to run gesture inference without blocking the main loop."""
         while self.running and rclpy.ok():
             try:
-                # Retrieve frame and bbox from queue
-                # Blocking with timeout to allow thread to exit properly
                 data = self.gesture_queue.get(timeout=1.0)
                 frame_copy, bbox = data
                 
@@ -472,8 +470,10 @@ class CameraReader(Node):
                         cv2.circle(frame, (cX, cY), 5, (0, 255, 0), -1)
                     
                     # Only push to queue if empty to avoid lag buildup
-                    if self.gesture_queue.empty():
-                        self.gesture_queue.put((frame.copy(), person_bbox))
+                    try:
+                        self.gesture_queue.put_nowait((frame.copy(), person_bbox))
+                    except queue.Full:
+                        pass
                 
                 else:
                     # Publish the target point
