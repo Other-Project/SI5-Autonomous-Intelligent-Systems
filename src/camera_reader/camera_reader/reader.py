@@ -474,10 +474,6 @@ class CameraReader(Node):
                             pass  
                     else:
                         pass
-                
-                else:
-                    # Publish the target point
-                    self._publish_goal_point([0.0, 0.0, 0.0], now)
             
                 # Publish images
                 if self.image_publisher_.get_subscription_count() > 0:
