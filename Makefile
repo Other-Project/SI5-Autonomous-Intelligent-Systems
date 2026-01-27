@@ -1,7 +1,7 @@
 all: sim
 
 build_ros:
-		colcon build
+	colcon build
 
 sim: build_ros
 	uv sync --extra sim
@@ -24,6 +24,17 @@ real: build_ros
 		. .venv/bin/activate && \
 		. ./install/setup.sh && \
 		ros2 launch turtlebot3_launch real.launch.py
+
+real_humble:
+	docker build -t ros-humble .
+	xhost +local:root && \
+		docker run -it --network host --ipc=host --pid=host \
+			--env DISPLAY=${DISPLAY} \
+			--env QT_X11_NO_MITSHM=1 \
+			--volume /tmp/.X11-unix:/tmp/.X11-unix \
+			--volume /dev/shm:/dev/shm \
+			--privileged \
+			ros-humble
 
 deploy: build_ros
 	uv sync --extra deploy
