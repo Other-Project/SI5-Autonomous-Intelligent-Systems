@@ -467,6 +467,11 @@ class CameraReader(Node):
                         # Transform to robot frame
                         point_robot = self._transform_camera_to_robot(point_cam_np)[0]
 
+                        self.get_logger().info(f"Goal point : ({point_robot[0]:.2f}, {point_robot[1]:.2f}, {point_robot[2]:.2f})")
+                        #set Z axis to 0
+                        point_robot[2] = 0.0
+                        self.get_logger().info(f"Adjusted goal point : ({point_robot[0]:.2f}, {point_robot[1]:.2f}, {point_robot[2]:.2f})")
+
                         # Publish the target point
                         self._publish_goal_point(point_robot, now)
 
@@ -494,6 +499,7 @@ class CameraReader(Node):
                 # Draw segmentation masks on frame
                 if self.seg_publisher_.get_subscription_count() > 0:
                     display_frame = self.yoloseg.draw_masks(frame, draw_scores=True, mask_alpha=0.5)
+                    display_frame = cv2.resize(display_frame, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_AREA)
                     ros_seg_msg = self.bridge.cv2_to_imgmsg(display_frame, encoding="bgr8")
                     ros_seg_msg.header.stamp = now
                     self.seg_publisher_.publish(ros_seg_msg)

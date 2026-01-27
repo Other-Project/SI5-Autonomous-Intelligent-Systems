@@ -30,7 +30,7 @@ deploy: build_ros
 	export ROS_DOMAIN_ID=5 && \
 	export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp && \
 	export ROS_LOG_LEVEL="rmw_cyclonedds_cpp=error" && \
-	export PYTHONPATH='.venv/lib/python3.10/site-packages' && \
+	export PYTHONPATH='.venv/lib/python3.12/site-packages' && \
 		. .venv/bin/activate && \
 		. ./install/setup.sh && \
 		ros2 launch turtlebot3_launch deploy.launch.py

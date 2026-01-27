@@ -37,6 +37,13 @@ sudo apt install ros-jazzy-depthai-ros ros-jazzy-turtlebot3-navigation2
 
 Setup the Luxonis OAK-D Pro camera by following the instructions [here](https://docs.luxonis.com/hardware/platform/deploy/usb-deployment-guide/).
 
+---
+
+To deploy to a Turtlebot3 with ROS Humble, you must update the following three files:
+- `Makefile`: Update the deploy instruction to set `PYTHONPATH` to `.venv/lib/python3.10/site-packages`.
+- `pyproject.toml`: Update the `requires-python` version to `==3.10.12`.
+- `turtlebot3_launch/launch/common_computer.launch.py`: Change the `params_file` of `nav2_bringup` to `nav2_params_deployed.yaml`.
+
 ## Usage
 
 * `make sim` to start the project in simulation mode
