@@ -27,17 +27,12 @@
 
 > Ensure that the directory path contains no spaces to avoid any issues during execution.
 
-Install [ROS Humble](https://docs.ros.org/en/humble/index.html) and [uv](https://docs.astral.sh/uv/) to run this project
+Install [ROS Jazzy](https://docs.ros.org/en/jazzy/index.html) and [uv](https://docs.astral.sh/uv/) to run this project
 
 Then install the following packages:
 
 ```sh
-curl -LsSf https://astral.sh/uv/install.sh | sh
-source $HOME/.local/bin/env
-sudo apt install ros-humble-depthai-ros ros-humble-turtlebot3-navigation2 build-essential python3-pip python3-venv  ros-humble-foxglove-bridge
-pip install --break-system-packages ultralytics depthai
-echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
-source ~/.bashrc
+sudo apt install ros-jazzy-depthai-ros ros-jazzy-turtlebot3-navigation2
 ```
 
 Setup the Luxonis OAK-D Pro camera by following the instructions [here](https://docs.luxonis.com/hardware/platform/deploy/usb-deployment-guide/).
