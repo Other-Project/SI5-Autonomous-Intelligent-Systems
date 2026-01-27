@@ -409,9 +409,9 @@ class CameraReader(Node):
         point_msg.header.stamp = rclpy.time.Time().to_msg()
         point_msg.header.frame_id = "base_link"
 
-        point_msg.point.x = point[0]
-        point_msg.point.y = point[1]
-        point_msg.point.z = point[2]
+        point_msg.point.x = float(point[0])
+        point_msg.point.y = float(point[1])
+        point_msg.point.z = float(point[2])
         try:
             point_msg = self.tf_buffer.transform(point_msg, 'map')
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
