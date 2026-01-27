@@ -170,11 +170,6 @@ class CameraReader(Node):
         manip_depth.initialConfig.setFrameType(dai.ImgFrame.Type.RAW16)
         stereo.depth.link(manip_depth.inputImage)
 
-        # Point cloud 
-        pointcloud = self.pipeline.create(dai.node.PointCloud)
-        pointcloud.initialConfig.setSparse(False)
-        stereo.depth.link(pointcloud.inputDepth)
-
         # Neural network node
         nn = self.pipeline.create(dai.node.NeuralNetwork)
         nn.setBlobPath(self.path_to_yolo_blob)
@@ -414,11 +409,11 @@ class CameraReader(Node):
         point_msg.point.z = float(point[2])
         try:
             point_msg = self.tf_buffer.transform(point_msg, 'map')
+            self.target_publisher_.publish(point_msg)
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
             self.get_logger().warn(f"Waiting for transformation: {str(e)}")
-            return
+        return
 
-        self.target_publisher_.publish(point_msg)
 
     def _run_camera_loop(self):
         """Main loop for image capture and processing.
