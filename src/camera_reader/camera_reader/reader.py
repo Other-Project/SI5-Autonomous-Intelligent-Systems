@@ -306,7 +306,7 @@ class CameraReader(Node):
         # Add borders
         return cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
 
-    def _detect_gesture(self, frame, bbox):
+    def _detect_gesture(self, roi):
         """Detect gesture within a person's bounding box.
         
         Args:
@@ -320,12 +320,6 @@ class CameraReader(Node):
             return None, 0.0
         
         try:
-            # Extract and clip ROI from bounding box
-            x1, y1, x2, y2 = map(int, bbox)
-            x1, y1 = max(0, x1), max(0, y1)
-            x2, y2 = min(frame.shape[1], x2), min(frame.shape[0], y2)
-            
-            roi = frame[y1:y2, x1:x2]
             if roi.size == 0:
                 return None, 0.0
             
@@ -375,9 +369,9 @@ class CameraReader(Node):
         while self.running and rclpy.ok():
             try:
                 data = self.gesture_queue.get(timeout=1.0)
-                frame_copy, bbox = data
+                roi = data
                 
-                gesture_name, gesture_conf = self._detect_gesture(frame_copy, bbox)
+                gesture_name, gesture_conf = self._detect_gesture(roi)
                 
                 if gesture_name is not None:
                     gesture_msg = String()
@@ -469,10 +463,16 @@ class CameraReader(Node):
                         # Visualize the centroid on the frame
                         cv2.circle(frame, (cX, cY), 5, (0, 255, 0), -1)
                     
-                    # Only push to queue if empty to avoid lag buildup
-                    try:
-                        self.gesture_queue.put_nowait((frame.copy(), person_bbox))
-                    except queue.Full:
+                    if not self.gesture_queue.full():
+                        x1, y1, x2, y2 = map(int, person_bbox)
+                        x1, y1 = max(0, x1), max(0, y1)
+                        x2, y2 = min(frame.shape[1], x2), min(frame.shape[0], y2)
+                        roi = frame[y1:y2, x1:x2].copy()
+                        try:
+                            self.gesture_queue.put_nowait(roi)
+                        except queue.Full:
+                            pass  
+                    else:
                         pass
                 
                 else:
