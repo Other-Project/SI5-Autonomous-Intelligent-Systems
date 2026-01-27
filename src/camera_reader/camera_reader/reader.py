@@ -406,7 +406,7 @@ class CameraReader(Node):
             now (rclpy.time.Time): Current ROS2 time for the message header.            
         """
         point_msg = PointStamped()
-        point_msg.header.stamp = 0
+        point_msg.header.stamp = rclpy.time.Time().to_msg()
         point_msg.header.frame_id = "base_link"
 
         point_msg.point.x = point[0]
