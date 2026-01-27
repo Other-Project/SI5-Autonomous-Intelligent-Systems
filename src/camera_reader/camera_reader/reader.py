@@ -16,8 +16,8 @@ from ament_index_python.packages import get_package_share_directory
 import std_msgs
 from .yolo_api import Segment 
 import tf2_ros
-import tf2_geometry_msgs # Required for transforming PointStamped
 import onnxruntime as ort
+from datetime import timedelta
 
 # Camera settings
 CAMERA_ANGLE = 45.0 # degrees
@@ -177,35 +177,24 @@ class CameraReader(Node):
         nn = self.pipeline.create(dai.node.NeuralNetwork)
         nn.setBlobPath(self.path_to_yolo_blob)
         cam_rgb.preview.link(nn.input)
+    
+        sync = self.pipeline.create(dai.node.Sync)
+        
+        sync.setSyncThreshold(timedelta(milliseconds=50))
+        nn.out.link(sync.inputs["nn"])
+        nn.passthrough.link(sync.inputs["rgb"])
+        manip_depth.out.link(sync.inputs["depth"])
 
-        # NN output
-        xout_nn = self.pipeline.create(dai.node.XLinkOut)
-        xout_nn.setStreamName("nn_results")
-        nn.out.link(xout_nn.input)
-
-        # RGB passthrough output
-        xout_rgb = self.pipeline.create(dai.node.XLinkOut)
-        xout_rgb.setStreamName("rgb_pass")
-        nn.passthrough.link(xout_rgb.input) 
-
-        # Depth output
-        xout_depth = self.pipeline.create(dai.node.XLinkOut)
-        xout_depth.setStreamName("depth")
-        manip_depth.out.link(xout_depth.input)
-
-        # Point cloud output
-        xout_pcl = self.pipeline.create(dai.node.XLinkOut)
-        xout_pcl.setStreamName("pcl")
-        pointcloud.outputPointCloud.link(xout_pcl.input)
+        # Créez une seule sortie XLinkOut pour le groupe synchronisé
+        xout_grp = self.pipeline.create(dai.node.XLinkOut)
+        xout_grp.setStreamName("synced_group")
+        sync.out.link(xout_grp.input)
 
         # Start the pipeline
         self.device.startPipeline(self.pipeline)
 
         # Get output queues
-        self.q_rgb = self.device.getOutputQueue(name="rgb_pass", maxSize=2, blocking=False)
-        self.q_nn = self.device.getOutputQueue(name="nn_results", maxSize=2, blocking=False)
-        self.q_depth = self.device.getOutputQueue(name="depth", maxSize=2, blocking=False)
-        self.q_pcl = self.device.getOutputQueue(name="pcl", maxSize=2, blocking=False)
+        self.q_synced = self.device.getOutputQueue(name="synced_group", maxSize=2, blocking=False)
 
         ## Rotation matrix for camera to robot frame transformation
         theta = np.radians(180.0 - CAMERA_ANGLE)
@@ -414,11 +403,14 @@ class CameraReader(Node):
         """
         while self.running and rclpy.ok():
             try:
-                # Get frames from DepthAI queues
-                in_rgb = self.q_rgb.get() 
-                in_nn = self.q_nn.get()
-                in_depth = self.q_depth.get() 
-                in_pcl = self.q_pcl.tryGet()
+
+                group = self.q_synced.get() 
+            
+                # Extraction des messages individuels par leur nom donné dans le pipeline
+                in_rgb = group["rgb"]
+                in_nn = group["nn"]
+                in_depth = group["depth"]
+                in_pcl = None #group["pcl"]
 
                 # Process frames
                 frame = in_rgb.getCvFrame()
@@ -493,6 +485,7 @@ class CameraReader(Node):
                 # Publish images
                 if self.image_publisher_.get_subscription_count() > 0:
                     ros_image_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+                    display_frame = cv2.resize(ros_image_msg, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_AREA)
                     ros_image_msg.header.stamp = now
                     self.image_publisher_.publish(ros_image_msg)
 
