@@ -1,10 +1,9 @@
 import tf2_geometry_msgs
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image, PointCloud2
+from sensor_msgs.msg import Image
 from geometry_msgs.msg import PointStamped
 from std_msgs.msg import String
-from sensor_msgs_py import point_cloud2 as pc2
 from cv_bridge import CvBridge 
 import json
 import depthai as dai
@@ -12,8 +11,8 @@ import numpy as np
 import os
 import cv2
 import threading 
+import queue
 from ament_index_python.packages import get_package_share_directory
-import std_msgs
 from .yolo_api import Segment 
 import tf2_ros
 import onnxruntime as ort
@@ -86,7 +85,6 @@ class CameraReader(Node):
         self.seg_publisher_ = self.create_publisher(Image, 'segmentation/image_raw', 2)
         self.image_publisher_ = self.create_publisher(Image, 'segmentation/through/image_raw', 2)
         self.target_publisher_ = self.create_publisher(PointStamped, 'robot/goal_point', 2)
-        self.pcl_publisher_ = self.create_publisher(PointCloud2, 'camera/pointcloud', 2)
         self.gesture_publisher_ = self.create_publisher(String, 'gesture/detected', 2)
         
         self.tf_buffer = tf2_ros.Buffer()
@@ -94,6 +92,10 @@ class CameraReader(Node):
 
         self.bridge = CvBridge()
         
+        self.gesture_queue = queue.Queue(maxsize=1)
+        self.gesture_thread = threading.Thread(target=self._gesture_worker_loop)
+        self.gesture_thread.start()
+
         # Initialize threading for camera loop
         self.running = True
         self.thread = threading.Thread(target=self._run_camera_loop)
@@ -177,10 +179,10 @@ class CameraReader(Node):
         nn = self.pipeline.create(dai.node.NeuralNetwork)
         nn.setBlobPath(self.path_to_yolo_blob)
         cam_rgb.preview.link(nn.input)
-    
+
         sync = self.pipeline.create(dai.node.Sync)
         
-        sync.setSyncThreshold(timedelta(milliseconds=50))
+        sync.setSyncThreshold(timedelta(milliseconds=250))
         nn.out.link(sync.inputs["nn"])
         nn.passthrough.link(sync.inputs["rgb"])
         manip_depth.out.link(sync.inputs["depth"])
@@ -193,7 +195,6 @@ class CameraReader(Node):
         # Start the pipeline
         self.device.startPipeline(self.pipeline)
 
-        # Get output queues
         self.q_synced = self.device.getOutputQueue(name="synced_group", maxSize=2, blocking=False)
 
         ## Rotation matrix for camera to robot frame transformation
@@ -373,7 +374,30 @@ class CameraReader(Node):
         except Exception as e:
             self.get_logger().warn(f'Gesture detection error: {e}')
             return None, 0.0
-    
+
+    def _gesture_worker_loop(self):
+        """Independant thread loop to run gesture inference without blocking the main loop."""
+        while self.running and rclpy.ok():
+            try:
+                # Retrieve frame and bbox from queue
+                # Blocking with timeout to allow thread to exit properly
+                data = self.gesture_queue.get(timeout=1.0)
+                frame_copy, bbox = data
+                
+                gesture_name, gesture_conf = self._detect_gesture(frame_copy, bbox)
+                
+                if gesture_name is not None:
+                    gesture_msg = String()
+                    gesture_msg.data = gesture_name
+                    self.gesture_publisher_.publish(gesture_msg)
+                    self.get_logger().debug(f'Detected gesture: {gesture_name} ({gesture_conf:.2f})')
+                
+                self.gesture_queue.task_done()
+            except queue.Empty:
+                continue
+            except Exception as e:
+                self.get_logger().error(f"Error in gesture thread: {e}")
+
     def _publish_goal_point(self, point, now):
         """Publish the target goal point as a PoseStamped message.
 
@@ -405,32 +429,18 @@ class CameraReader(Node):
             try:
 
                 group = self.q_synced.get() 
+                if group is None: 
+                    continue
             
                 # Extraction des messages individuels par leur nom donné dans le pipeline
                 in_rgb = group["rgb"]
                 in_nn = group["nn"]
                 in_depth = group["depth"]
-                in_pcl = None #group["pcl"]
 
                 # Process frames
                 frame = in_rgb.getCvFrame()
                 depth_frame = in_depth.getFrame()
                 now = self.get_clock().now().to_msg()
-
-                if (in_pcl is not None and
-                    self.pcl_publisher_.get_subscription_count() > 0):
-
-                    points = in_pcl.getPoints().reshape(-1, 3) / 1000.0
-
-                    # Transform points to robot frame
-                    points_robot = self._transform_camera_to_robot(points)
-
-                    header = std_msgs.msg.Header()
-                    header.stamp = now
-                    header.frame_id = "base_link"
-
-                    pc2_msg = pc2.create_cloud_xyz32(header, points_robot)
-                    self.pcl_publisher_.publish(pc2_msg)
 
                 # Get NN outputs
                 layer0 = np.array(in_nn.getLayerFp16("output0")).reshape(self.model_data["shapes"]["output0"])
@@ -470,13 +480,9 @@ class CameraReader(Node):
                         # Visualize the centroid on the frame
                         cv2.circle(frame, (cX, cY), 5, (0, 255, 0), -1)
                     
-                    # Gesture detection on person bounding box
-                    gesture_name, gesture_conf = self._detect_gesture(frame, person_bbox)
-                    if gesture_name is not None:
-                        gesture_msg = String()
-                        gesture_msg.data = gesture_name
-                        self.gesture_publisher_.publish(gesture_msg)
-                        self.get_logger().debug(f'Detected gesture: {gesture_name} ({gesture_conf:.2f})')
+                    # Only push to queue if empty to avoid lag buildup
+                    if self.gesture_queue.empty():
+                        self.gesture_queue.put((frame.copy(), person_bbox))
                 
                 else:
                     # Publish the target point
@@ -484,8 +490,8 @@ class CameraReader(Node):
             
                 # Publish images
                 if self.image_publisher_.get_subscription_count() > 0:
-                    ros_image_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
-                    display_frame = cv2.resize(ros_image_msg, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_AREA)
+                    frame_resized = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_AREA)
+                    ros_image_msg = self.bridge.cv2_to_imgmsg(frame_resized, encoding="bgr8")
                     ros_image_msg.header.stamp = now
                     self.image_publisher_.publish(ros_image_msg)
 
@@ -508,6 +514,8 @@ class CameraReader(Node):
         Stops the image capture thread and waits for its termination before destroying the ROS2 node.
         """
         self.running = False
+        if hasattr(self, 'gesture_thread'):
+            self.gesture_thread.join()
         if hasattr(self, 'thread'):
             self.thread.join()
         super().destroy_node()
