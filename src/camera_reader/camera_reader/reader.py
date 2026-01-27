@@ -398,7 +398,7 @@ class CameraReader(Node):
 
         Args:
             point (list): 3D coordinates [X, Y, Z] in meters.
-            now (rclpy.time.Time): Current ROS2 time for the message header.            
+            now (rclpy.time.Time): Current ROS2 time for the message header.
         """
         point_msg = PointStamped()
         point_msg.header.stamp = rclpy.time.Time().to_msg()
@@ -407,13 +407,17 @@ class CameraReader(Node):
         point_msg.point.x = float(point[0])
         point_msg.point.y = float(point[1])
         point_msg.point.z = float(point[2])
-        try:
-            point_msg = self.tf_buffer.transform(point_msg, 'map')
-            self.target_publisher_.publish(point_msg)
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
-            self.get_logger().warn(f"Waiting for transformation: {str(e)}")
-        return
 
+        # Check if the transform is available before attempting to transform
+        dest_frame = 'map'
+        if self.tf_buffer.can_transform(dest_frame,point_msg.header.frame_id, rclpy.time.Time()):
+            try:
+                point_msg = self.tf_buffer.transform(point_msg, dest_frame, timeout=rclpy.duration.Duration(seconds=1.0))
+                self.target_publisher_.publish(point_msg)
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+                self.get_logger().warn(f"Transformation failed: {str(e)}")
+        else:
+            self.get_logger().warn(f"Transform not available: {point_msg.header.frame_id} -> {dest_frame}")
 
     def _run_camera_loop(self):
         """Main loop for image capture and processing.
