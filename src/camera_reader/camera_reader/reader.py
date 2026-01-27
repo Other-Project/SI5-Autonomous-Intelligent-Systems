@@ -406,7 +406,7 @@ class CameraReader(Node):
             now (rclpy.time.Time): Current ROS2 time for the message header.            
         """
         point_msg = PointStamped()
-        point_msg.header.stamp = now
+        point_msg.header.stamp = 0
         point_msg.header.frame_id = "base_link"
 
         point_msg.point.x = point[0]
@@ -466,16 +466,8 @@ class CameraReader(Node):
                         # Compute 3D coordinates from depth
                         point_cam_np = self._compute_3d_point_from_depth(cX, cY, valid_depths)
 
-                        # Transform to robot frame
-                        point_robot = self._transform_camera_to_robot(point_cam_np)[0]
-
-                        self.get_logger().info(f"Goal point : ({point_robot[0]:.2f}, {point_robot[1]:.2f}, {point_robot[2]:.2f})")
-                        #set Z axis to 0
-                        point_robot[2] = 0.0
-                        self.get_logger().info(f"Adjusted goal point : ({point_robot[0]:.2f}, {point_robot[1]:.2f}, {point_robot[2]:.2f})")
-
                         # Publish the target point
-                        self._publish_goal_point(point_robot, now)
+                        self._publish_goal_point(point_cam_np, now)
 
                         # Visualize the centroid on the frame
                         cv2.circle(frame, (cX, cY), 5, (0, 255, 0), -1)
