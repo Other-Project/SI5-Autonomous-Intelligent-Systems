@@ -1,157 +1,66 @@
 #include <gz/sim/System.hh>
 #include <gz/plugin/Register.hh>
-
-#include <gz/rendering/RenderingIface.hh>
-#include <gz/rendering/Scene.hh>
-#include <gz/rendering/Visual.hh>
-#include <gz/rendering/Material.hh>
-
-#include <gz/common/Console.hh>
-#include <gz/common/Image.hh>
-
+#include <gz/msgs/image.pb.h>
+#include <gz/transport/Node.hh>
 #include <opencv2/opencv.hpp>
-
-#include <string>
 #include <chrono>
 
-namespace video_texture_plugin
-{
-class VideoTexturePlugin :
-    public gz::sim::System,
-    public gz::sim::ISystemConfigure,
-    public gz::sim::ISystemPostUpdate
-{
-private:
-    std::string videoPath;
-    std::string visualName;
-    double fps{30.0};
-    bool debug{false};
-
-    gz::rendering::ScenePtr scene;
-    gz::rendering::VisualPtr visual;
-    gz::rendering::MaterialPtr material;
-
+namespace video_texture_plugin {
+class VideoTexturePlugin : public gz::sim::System, 
+                            public gz::sim::ISystemConfigure, 
+                            public gz::sim::ISystemPostUpdate {
     cv::VideoCapture cap;
-    cv::Mat frameRGB;
-
-    bool initialized{false};
+    gz::transport::Node node;
+    gz::transport::Node::Publisher img_pub;
+    std::string topicName = "video_stream";
+    double fps{30.0};
     std::chrono::steady_clock::time_point lastFrameTime;
-    std::string tempTexturePath{"/tmp/gz_video_frame.png"};
 
 public:
-    void Configure(
-        const gz::sim::Entity &,
-        const std::shared_ptr<const sdf::Element> &_sdf,
-        gz::sim::EntityComponentManager &,
-        gz::sim::EventManager &) override
-    {
-        this->videoPath = _sdf->Get<std::string>("video_path", "").first;
-        this->visualName = _sdf->Get<std::string>("visual_name", "").first;
+    void Configure(const gz::sim::Entity &, const std::shared_ptr<const sdf::Element> &_sdf,
+                  gz::sim::EntityComponentManager &, gz::sim::EventManager &) override {
+        
+        std::string videoPath = _sdf->Get<std::string>("video_path", "").first;
         this->fps = _sdf->Get<double>("fps", 30.0).first;
-        this->debug = _sdf->Get<bool>("debug", false).first;
 
-        if (this->videoPath.empty())
-        {
-            gzerr << "[VideoTexturePlugin] video_path missing\n";
-            return;
-        }
-
-        this->cap.open(this->videoPath);
-        if (!this->cap.isOpened())
-        {
-            gzerr << "[VideoTexturePlugin] Failed to open video: " << this->videoPath << "\n";
-            return;
-        }
-
+        this->cap.open(videoPath);
+        this->img_pub = this->node.Advertise<gz::msgs::Image>(this->topicName);
         this->lastFrameTime = std::chrono::steady_clock::now();
-        gzmsg << "[VideoTexturePlugin] Video opened: " << this->videoPath << "\n";
+        
+        if (this->cap.isOpened()) {
+            std::cout << "[VideoPlugin] Lecture video OK : " << videoPath << std::endl;
+        } else {
+            std::cerr << "[VideoPlugin] ERREUR : Impossible de lire " << videoPath << std::endl;
+        }
     }
 
-    void PostUpdate(
-        const gz::sim::UpdateInfo &,
-        const gz::sim::EntityComponentManager &) override
-    {
-        if (!this->initialized)
-        {
-            // Récupération de la scène
-            this->scene = gz::rendering::sceneFromFirstRenderEngine();
-            if (!this->scene)
-            {
-                gzerr << "[VideoTexturePlugin] No rendering scene found\n";
-                return;
-            }
+    void PostUpdate(const gz::sim::UpdateInfo &_info, const gz::sim::EntityComponentManager &) override {
+        if (_info.paused) return;
 
-            // Recherche du visual par son nom
-            this->visual = this->scene->VisualByName(this->visualName);
-            if (!this->visual)
-            {
-                gzerr << "[VideoTexturePlugin] Visual not found: " << this->visualName << "\n";
-                return;
-            }
-
-            // Récupérer ou créer le matériau
-            this->material = this->visual->Material();
-            if (!this->material)
-            {
-                this->material = this->scene->CreateMaterial();
-                this->visual->SetMaterial(this->material);
-            }
-
-            this->material->SetLightingEnabled(false);
-            this->material->SetAmbient(1, 1, 1, 1);
-            this->material->SetDiffuse(1, 1, 1, 1);
-
-            this->initialized = true;
-            gzmsg << "[VideoTexturePlugin] Rendering ready for visual: " << this->visualName << "\n";
-        }
-
-        // Limiter le FPS
         auto now = std::chrono::steady_clock::now();
-        if (std::chrono::duration<double>(now - this->lastFrameTime).count() < 1.0 / this->fps)
-            return;
-
+        if (std::chrono::duration<double>(now - this->lastFrameTime).count() < (1.0 / this->fps)) return;
         this->lastFrameTime = now;
 
-        // Lire la frame suivante
-        cv::Mat frameBGR;
-        if (!this->cap.read(frameBGR))
-        {
-            if (this->debug) gzmsg << "[VideoTexturePlugin] Video ended, looping\n";
-            this->cap.set(cv::CAP_PROP_POS_FRAMES, 0);
-            return;
+        cv::Mat frame;
+        if (this->cap.read(frame)) {
+            gz::msgs::Image msg;
+            msg.set_width(frame.cols);
+            msg.set_height(frame.rows);
+            msg.set_step(frame.cols * 3);
+            msg.set_pixel_format_type(gz::msgs::PixelFormatType::RGB_INT8);
+            
+            cv::Mat frameRGB;
+            cv::cvtColor(frame, frameRGB, cv::COLOR_BGR2RGB);
+            msg.set_data(frameRGB.data, frameRGB.rows * frameRGB.cols * 3);
+            
+            this->img_pub.Publish(msg);
+        } else {
+            this->cap.set(cv::CAP_PROP_POS_FRAMES, 0); // Loop
         }
-
-        cv::cvtColor(frameBGR, this->frameRGB, cv::COLOR_BGR2RGB);
-        this->UpdateTexture();
-    }
-
-    void UpdateTexture()
-    {
-        if (this->frameRGB.empty())
-            return;
-
-        // Convertir la frame en gz::common::Image
-        gz::common::Image img;
-        img.SetFromData(
-            this->frameRGB.data,
-            this->frameRGB.cols,
-            this->frameRGB.rows,
-            gz::common::Image::RGB_INT8);
-
-        // Sauvegarder temporairement
-        img.SavePNG(this->tempTexturePath);
-
-        // Appliquer sur le matériau
-        this->material->SetTexture(this->tempTexturePath);
-
-        if (this->debug)
-            gzmsg << "[VideoTexturePlugin] Texture updated on visual: " << this->visualName << "\n";
     }
 };
-} // namespace video_texture_plugin
+}
 
-GZ_ADD_PLUGIN(
-    video_texture_plugin::VideoTexturePlugin,
-    gz::sim::System,
-    gz::sim::ISystemConfigure,
-    gz::sim::ISystemPostUpdate)
+GZ_ADD_PLUGIN(video_texture_plugin::VideoTexturePlugin, gz::sim::System, 
+              video_texture_plugin::VideoTexturePlugin::ISystemConfigure, 
+              video_texture_plugin::VideoTexturePlugin::ISystemPostUpdate)
