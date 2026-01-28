@@ -1,44 +1,34 @@
 <?xml version="1.0" ?>
-<sdf version="1.6"> <model name='myBox'>
+<sdf version="1.6">
+  <model name="myBox">
+    <static>true</static>
     <pose>2 2 0.9 0 0 0</pose>
-    <static>1</static>
-    <link name='link'>
-      <collision name='collision'>
+
+    <link name="link">
+      <visual name="imageFace">
+        <pose>0 0 0 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.5 1.0 1.8</size>
-          </box>
-        </geometry>
-      </collision>
-      <visual name='visual'>
-        <geometry>
-          <box>
-            <size>0.5 1.0 2.0</size>
+            <size>0.01 1.0 1.8</size>
           </box>
         </geometry>
         <material>
-          <ambient>0.1 0.1 0.8 1</ambient>
-          <diffuse>0.1 0.1 0.8 1</diffuse>
-        </material>
-      </visual>
-      <visual name='imageFace'>
-        <pose>-0.251 0 0 0 0 0</pose>
-        <geometry>
-          <box>
-            <size>0.001 1.0 1.8</size>
-          </box>
-        </geometry>
-        <material>
-          <ambient>1 1 1 1</ambient>
           <diffuse>1 1 1 1</diffuse>
-          <specular>0.1 0.1 0.1 1</specular>
-          <pbr>
-            <metal>
-              <albedo_map>image.png</albedo_map>
-            </metal>
-          </pbr>
+          <specular>0 0 0 1</specular>
         </material>
       </visual>
     </link>
+
+    <plugin
+      filename="libros_video_texture_plugin.so"
+      name="video_texture_plugin::VideoTexturePlugin">
+      
+      <video_path>/home/jilia/SAI5/src/video_publisher/video_publisher/video.mp4</video_path>
+      
+      <topic>/video_stream</topic>
+      
+      <fps>30</fps>
+    </plugin>
+
   </model>
 </sdf>
