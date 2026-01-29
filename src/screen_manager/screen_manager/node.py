@@ -8,6 +8,13 @@ POS_ACTIVE = (1, 0.0, 0.9)
 POS_CACHE  = (0.0, 0.0, -5.0)
 OBJETS = ["video_screen_0", "video_screen_1", "video_screen_2"]
 
+# Mapping pour la lisibilité
+MAPPING = {
+    '0': "NORMAL",
+    '1': "START FOLLOWING",
+    '2': "STOP"
+}
+
 def deplacer(node, nom, position):
     service = "/world/default/set_pose"
     msg = Pose()
@@ -17,7 +24,10 @@ def deplacer(node, nom, position):
     
     ok, response = node.request(service, msg, Pose, Boolean, 1000)
     if ok:
-        print(f"{nom} moved.")
+        # On affiche le nom correspondant au mapping si possible
+        suffixe = nom.split('_')[-1]
+        action = MAPPING.get(suffixe, nom)
+        print(f"Status changed to: {action}")
     else:
         print(f"Error with {nom}")
     return ok
@@ -29,19 +39,24 @@ def afficher_uniquement(node, index_a_afficher):
 
 def main():
     node = Node()
-    print("\n--- MANUAL CONTROL ---")
-    print("Type 0, 1, or 2 and press Enter to change the image.")
-    print("Type 'q' to quit.\n")
+    print("\n--- ROBOT CONTROL INTERFACE ---")
+    print("Commands:")
+    print("  0 : NORMAL")
+    print("  1 : START FOLLOWING")
+    print("  2 : STOP")
+    print("  q : Quit\n")
 
     while True:
-        choix = input("Choice (0/1/2/q): ")
+        choix = input("Choice (0/1/2/q): ").strip()
         
-        if choix == 'q':
+        if choix.lower() == 'q':
+            print("Exiting...")
             break
-        elif choix in ['0', '1', '2']:
+        elif choix in MAPPING:
+            print(f"\nTriggering: {MAPPING[choix]}")
             afficher_uniquement(node, int(choix))
         else:
-            print("Unrecognized key.")
+            print(f"Invalid choice '{choix}'. Please use 0, 1, 2 or q.")
 
 if __name__ == "__main__":
     main()
