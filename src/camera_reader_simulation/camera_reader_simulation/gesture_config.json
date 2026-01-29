@@ -1,6 +1,18 @@
 {
     "class_names": [
+        "grabbing",
+        "grip",
+        "holy",
+        "point",
         "call",
+        "three3",
+        "timeout",
+        "xsign",
+        "hand_heart",
+        "hand_heart2",
+        "little_finger",
+        "middle_finger",
+        "take_picture",
         "dislike",
         "fist",
         "four",
@@ -17,6 +29,10 @@
         "three",
         "three2",
         "two_up",
-        "two_up_inverted"
+        "two_up_inverted",
+        "three_gun",
+        "thumb_index",
+        "thumb_index2",
+        "no_gesture"
     ]
 }

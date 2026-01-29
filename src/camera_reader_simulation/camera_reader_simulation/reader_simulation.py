@@ -167,7 +167,7 @@ class CameraReaderSimulation(Node):
 
                     self.get_logger().info(f"Gesture detected: {gesture_name}, Confidence: {conf:.2f}, Last: {self.last_gesture}")
 
-                    if gesture_name != "no_gesture" and gesture_name != self.last_gesture:
+                    if gesture_name != self.last_gesture:
                         msg = String()
                         msg.data = gesture_name
                         self.gesture_publisher_.publish(msg)

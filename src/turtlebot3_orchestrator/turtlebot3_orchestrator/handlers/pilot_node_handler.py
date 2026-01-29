@@ -3,6 +3,7 @@ from nav_msgs.msg import Odometry
 from lifecycle_msgs.msg import State, Transition
 import math
 from typing import Optional
+import time 
 
 from .base_node_handler import BaseNodeHandler
 
@@ -47,6 +48,8 @@ class PilotNodeHandler(BaseNodeHandler):
         if gesture == "stop":
             if state_id == State.PRIMARY_STATE_ACTIVE:
                 self.logger.info(f"[{self.node_name}] STOP -> Deactivating")
+                self._send_current_pose_as_goal()
+                time.sleep(0.2)        
                 self.last_sent_goal = None
                 return Transition.TRANSITION_DEACTIVATE
             else:
@@ -112,6 +115,22 @@ class PilotNodeHandler(BaseNodeHandler):
             self.logger.debug("Waiting for current pose and/or goal pose...")
             return
         
+        curr_x = self.current_pose.pose.pose.position.x
+        curr_y = self.current_pose.pose.pose.position.y
+        goal_x = goal_point.point.x
+        goal_y = goal_point.point.y
+        
+        dist_to_robot = math.sqrt((goal_x - curr_x)**2 + (goal_y - curr_y)**2)
+
+        if dist_to_robot < 1.0:
+            self.logger.warn(f"Goal too close ({dist_to_robot:.2f}m). Stopping robot.")
+            self._send_current_pose_as_goal()    
+            time.sleep(0.2)        
+            manager = self.orchestrator.managed_nodes.get(self.node_name)
+            if manager:
+                manager.set_state(Transition.TRANSITION_DEACTIVATE)
+            return
+        
         pose_global = self._convert_point_to_pose(goal_point)
         
         # Check distance from the last goal
@@ -144,3 +163,13 @@ class PilotNodeHandler(BaseNodeHandler):
         pose_msg.pose.position = point_msg.point
         pose_msg.pose.orientation.w = 1.0
         return pose_msg
+    
+    def _send_current_pose_as_goal(self):
+        if self.current_pose is not None and self.goal_publisher is not None:
+            stop_pose = PoseStamped()
+            stop_pose.header = self.current_pose.header
+            stop_pose.pose = self.current_pose.pose.pose 
+            
+            self.logger.info(f"[{self.node_name}] Sending current pose as STOP goal")
+            self.goal_publisher.publish(stop_pose)
+            self.last_sent_goal = stop_pose

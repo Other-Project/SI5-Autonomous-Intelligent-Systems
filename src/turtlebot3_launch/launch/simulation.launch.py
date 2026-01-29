@@ -12,6 +12,7 @@ from launch_ros.actions import Node
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch.actions import TimerAction
+from launch.actions import ExecuteProcess
 
 
 def generate_launch_description():
@@ -28,7 +29,7 @@ def generate_launch_description():
     world = os.path.join(
         get_package_share_directory("turtlebot3_gazebo"),
         "worlds",
-        "turtlebot3_world.world",
+        "turtlebot3_world_sim.world",
     )
 
     box_sdf_path = os.path.join(
@@ -63,7 +64,9 @@ def generate_launch_description():
             PythonLaunchDescriptionSource(
                 os.path.join(ros_gz_sim, "launch", "gz_sim.launch.py")
             ),
-            launch_arguments={"gz_args": "-g "}.items(),
+            launch_arguments={
+                "gz_args": "-g" 
+            }.items(),
         )
     )
 
@@ -95,21 +98,6 @@ def generate_launch_description():
                 )
             ),
             launch_arguments={"use_sim_time": use_sim_time}.items(),
-        )
-    )
-
-    ld.add_action(
-        Node(
-            package='ros_gz_sim',
-            executable='create',
-            arguments=[
-                '-name', 'my_custom_box',
-                '-file', box_sdf_path,
-                '-x', '1.0',
-                '-y', '0.0',
-                '-z', '1.0'
-            ],
-            output='screen',
         )
     )
 

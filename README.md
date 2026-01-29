@@ -32,7 +32,7 @@ Install [ROS Jazzy](https://docs.ros.org/en/jazzy/index.html) and [uv](https://d
 Then install the following packages:
 
 ```sh
-sudo apt install ros-jazzy-depthai-ros ros-jazzy-turtlebot3-navigation2
+sudo apt install ros-jazzy-depthai-ros ros-jazzy-turtlebot3-navigation2 python3-gz-transport13 python3-gz-msgs10
 ```
 
 Setup the Luxonis OAK-D Pro camera by following the instructions [here](https://docs.luxonis.com/hardware/platform/deploy/usb-deployment-guide/).

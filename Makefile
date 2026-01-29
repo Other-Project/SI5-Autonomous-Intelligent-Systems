@@ -17,6 +17,10 @@ sim_teleop:
 	export TURTLEBOT3_MODEL=burger && \
 		ros2 run turtlebot3_teleop teleop_keyboard
 
+sim_gestures:
+	. ./install/setup.sh && \
+	ros2 run screen_manager manage_screens
+
 real: build_ros
 	export ROS_DOMAIN_ID=5 && \
 	export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp && \
