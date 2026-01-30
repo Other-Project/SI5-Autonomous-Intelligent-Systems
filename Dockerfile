@@ -10,7 +10,7 @@ RUN apt install -y nano
 
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-RUN git clone https://github.com/Other-Project/SI5-Autonomous-Intelligent-Systems.git
+COPY . /SI5-Autonomous-Intelligent-Systems
 
 WORKDIR /SI5-Autonomous-Intelligent-Systems
 

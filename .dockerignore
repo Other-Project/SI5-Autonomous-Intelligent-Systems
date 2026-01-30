@@ -1,0 +1,7 @@
+log/
+build/
+install/
+.vscode/
+.assets/
+.venv/
+.out/

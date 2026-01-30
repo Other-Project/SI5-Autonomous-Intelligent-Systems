@@ -26,6 +26,8 @@ real: build_ros
 		ros2 launch turtlebot3_launch real.launch.py
 
 real_humble:
+	sudo mkdir -p .out/docker/
+	sudo touch .out/docker/uv.lock
 	docker build -t ros-humble .
 	xhost +local:root && \
 		docker run -it --network host --ipc=host --pid=host \
@@ -34,6 +36,8 @@ real_humble:
 			--volume /tmp/.X11-unix:/tmp/.X11-unix \
 			--volume /dev/shm:/dev/shm \
 			--privileged \
+			-v .out/docker/.venv:/SI5-Autonomous-Intelligent-Systems/.venv \
+			-v .out/docker/uv.lock:/SI5-Autonomous-Intelligent-Systems/uv.lock \
 			ros-humble
 
 deploy: build_ros
