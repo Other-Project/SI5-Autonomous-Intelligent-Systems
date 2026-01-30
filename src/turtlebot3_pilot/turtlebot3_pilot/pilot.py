@@ -13,6 +13,7 @@ class Pilot(LifecycleNode):
         self.timer = None
         self._goal_handle = None
         self._last_sent_goal = None
+        self._send_goal_future = None
         self._cancel_future = None 
         self.get_logger().info("Pilot node started.")
 
@@ -45,6 +46,7 @@ class Pilot(LifecycleNode):
         
         if self._goal_handle is not None:
             self.get_logger().info("Cancelling current Nav2 goal...")
+
             self._cancel_future = self._goal_handle.cancel_goal_async()
         
             self._goal_handle = None
@@ -71,6 +73,9 @@ class Pilot(LifecycleNode):
 
     def go_to_goal(self):
         if self._state_machine.current_state[1] != 'active':
+            return
+        
+        if self._send_goal_future is not None and not self._send_goal_future.done():
             return
 
         if self.goal_point is None:
@@ -106,6 +111,7 @@ class Pilot(LifecycleNode):
         
         self._get_result_future = goal_handle.get_result_async()
         self._get_result_future.add_done_callback(self.get_result_callback)
+        self._send_goal_future = None
 
     def get_result_callback(self, future):
         result = future.result()

@@ -49,7 +49,7 @@ class PilotNodeHandler(BaseNodeHandler):
             if state_id == State.PRIMARY_STATE_ACTIVE:
                 self.logger.info(f"[{self.node_name}] STOP -> Deactivating")
                 self._send_current_pose_as_goal()
-                time.sleep(0.2)        
+                time.sleep(0.5)        
                 self.last_sent_goal = None
                 return Transition.TRANSITION_DEACTIVATE
             else:
@@ -125,7 +125,7 @@ class PilotNodeHandler(BaseNodeHandler):
         if dist_to_robot < 1.0:
             self.logger.warn(f"Goal too close ({dist_to_robot:.2f}m). Stopping robot.")
             self._send_current_pose_as_goal()    
-            time.sleep(0.2)        
+            time.sleep(0.5)        
             manager = self.orchestrator.managed_nodes.get(self.node_name)
             if manager:
                 manager.set_state(Transition.TRANSITION_DEACTIVATE)
