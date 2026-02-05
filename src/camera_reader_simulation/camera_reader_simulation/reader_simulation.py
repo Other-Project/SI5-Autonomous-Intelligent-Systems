@@ -93,7 +93,7 @@ class CameraReaderSimulation(Node):
             frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
             height, width = frame.shape[:2]
 
-            results = self.model(frame, verbose=False, conf=SEGMENTATION_CONFIDENCE_THRESHOLD, imgsz=SEGMENTATION_INPUT_SIZE)
+            results = self.model(frame, verbose=False, conf=SEGMENTATION_CONFIDENCE_THRESHOLD, imgsz=SEGMENTATION_INPUT_SIZE, classes=[0])
             result = results[0]
 
             target_point = None
@@ -103,7 +103,7 @@ class CameraReaderSimulation(Node):
                 self.get_logger().info("Waiting for camera info reception")
 
             if self.is_ready and result.masks is not None:
-                display_frame = result[0].plot()
+                display_frame = result.plot()
 
                 best_box, best_mask = self.get_best_box_mask(result, height, width)
 
@@ -165,9 +165,7 @@ class CameraReaderSimulation(Node):
                     else:
                         gesture_name = self.gesture_model.names[cls_id] 
 
-                    self.get_logger().info(f"Gesture detected: {gesture_name}, Confidence: {conf:.2f}, Last: {self.last_gesture}")
-
-                    if gesture_name != "no_gesture" and gesture_name != self.last_gesture:
+                    if gesture_name != self.last_gesture:
                         msg = String()
                         msg.data = gesture_name
                         self.gesture_publisher_.publish(msg)

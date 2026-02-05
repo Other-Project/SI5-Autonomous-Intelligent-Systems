@@ -352,7 +352,7 @@ class CameraReader(Node):
                                    if class_id < len(self.gesture_class_names) 
                                    else f"gesture_{class_id}")
 
-                    if gesture_name == "no_gesture" or gesture_name == self.last_gesture:
+                    if gesture_name == self.last_gesture:
                         return None, 0.0
 
                     self.last_gesture = gesture_name

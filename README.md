@@ -32,7 +32,7 @@ Install [ROS Jazzy](https://docs.ros.org/en/jazzy/index.html) and [uv](https://d
 Then install the following packages:
 
 ```sh
-sudo apt install ros-jazzy-depthai-ros ros-jazzy-turtlebot3-navigation2 ros-jazzy-turtlebot3-description
+sudo apt install ros-jazzy-depthai-ros ros-jazzy-turtlebot3-navigation2 ros-jazzy-turtlebot3-description python3-gz-transport13 python3-gz-msgs10
 ```
 
 Setup the Luxonis OAK-D Pro camera by following the instructions [here](https://docs.luxonis.com/hardware/platform/deploy/usb-deployment-guide/).
@@ -50,7 +50,9 @@ To use ROS Humble, you must update the following files:
 * `make sim` to start the project in simulation mode
 * `make deploy` to start the project in a deployed environment
 * `make real` to start the project on a computer connected to the Turtlebot3
-* `make teleop` to manually control the robot with keyboard inputs
+* `make sim_teleop` to manually control the robot with keyboard inputs in the simulation
+* `make teleop` to manually control the real robot with keyboard inputs
+* `make sim_gestures` to change the person's image displayed in the simulation
 * `make clean` to clean the workspace
 * `make mass_shooting` to kill all remaining simulation processes
 
@@ -97,6 +99,22 @@ The remaining functionality, including mask processing, gesture detection, and c
 ### Turtlebot3 Pilot
 
 The pilot package is responsible for sending a PoseStamped message to Nav2 to calculate the path required to reach a destination. This PoseStamped is received via the `/pilot/goal_point` ROS topic.
+
+### Screen Manager
+
+The Screen Manager updates the virtual displays in the simulation, providing visual feedback for the currently selected gesture.
+
+It uses `gz-transport13` to communicate with the Gazebo world, allowing it to swap screens in real-time without restarting the simulation.
+
+The manager toggles between three specific visual states:
+
+| State | Image Displayed | Context |
+| :--- | :--- | :--- |
+| **Normal** | `video_screen_0` | No specific gesture detected. The robot is in "standby" or looking for its person. |
+| **Start Following** | `video_screen_1` | The "Fist" gesture is recognized. The robot confirms it is now tracking the person. |
+| **Stop** | `video_screen_2` | The "Stop" gesture is recognized. The robot confirms it has halted all movement. |
+
+To change the image, the package "teleports" the desired screen to specific coordinates within the simulation's field of view, while hiding the others below the ground plane ($z = -5.0m$).
 
 ## Orchestrator
 
