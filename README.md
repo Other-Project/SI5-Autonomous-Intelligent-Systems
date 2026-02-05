@@ -207,3 +207,8 @@ graph TB
     style Orchestrator fill:#d9ead3
     style Pilot fill:#fce5cd
 ```
+
+## Simulation
+
+https://github.com/user-attachments/assets/e367988b-3aa6-4772-a102-c07bd55dc777
+
