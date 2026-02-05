@@ -396,8 +396,8 @@ class CameraReader(Node):
         point_msg.header.stamp = rclpy.time.Time().to_msg()
         point_msg.header.frame_id = "oak_d_pro_depth_optical_frame"
 
-        point_msg.point.x = float(point[0])
-        point_msg.point.y = float(point[1])
+        point_msg.point.x = float(point[1])
+        point_msg.point.y = -float(point[0])
         point_msg.point.z = float(point[2])
 
         # Check if the transform is available before attempting to transform
